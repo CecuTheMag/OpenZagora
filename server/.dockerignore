@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.env.*.local
+uploads/*
+parsed/*
+*.log
+.DS_Store
+.vscode
+.idea
+coverage
+*.test.js
+*.spec.js

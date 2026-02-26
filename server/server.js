@@ -1,0 +1,113 @@
+/**
+ * Open Zagora - Express Server
+ * 
+ * Main server file for the municipal transparency dashboard API.
+ * Handles PDF uploads, database operations, and serves data to the frontend.
+ */
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
+
+// Import database pool and test connection
+const { testConnection } = require('./db/pool');
+
+// Import route handlers
+const uploadRoutes = require('./routes/upload');
+const projectRoutes = require('./routes/projects');
+const budgetRoutes = require('./routes/budget');
+const voteRoutes = require('./routes/votes');
+
+// Initialize Express application
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// ==========================================
+// MIDDLEWARE SETUP
+// ==========================================
+
+// Enable CORS for all origins (configure for production)
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true
+}));
+
+// Parse JSON request bodies
+app.use(express.json());
+
+// Parse URL-encoded request bodies
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ==========================================
+// API ROUTES
+// ==========================================
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Open Zagora API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Mount route handlers
+app.use('/api/upload', uploadRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/budget', budgetRoutes);
+app.use('/api/votes', voteRoutes);
+
+// ==========================================
+// ERROR HANDLING
+// ==========================================
+
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.path} not found`
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+// ==========================================
+// SERVER STARTUP
+// ==========================================
+
+const startServer = async () => {
+  // Test database connection before starting server
+  await testConnection();
+  
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+};
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Start the server
+startServer();
