@@ -10,8 +10,8 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
-// API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// API base URL - use relative path to go through Vite proxy
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance with default config
 const api = axios.create({

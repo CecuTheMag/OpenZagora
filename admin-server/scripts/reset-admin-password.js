@@ -24,7 +24,7 @@ const resetPassword = async () => {
         `INSERT INTO admin_users (username, email, password_hash, role, is_active)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, username, email, role, is_active`,
-        ['admin', 'admin@openzagora.local', hashedPassword, 'admin', true]
+        ['admin', 'admin@openzagora.local', hashedPassword, 'super_admin', true]
       );
       
       console.log('✅ Admin user created successfully');

@@ -13,10 +13,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 // Import admin database pool and test connection
-const { testConnection, initSchema } = require('./db/pool');
+const { pool, testConnection, initSchema } = require('./db/pool');
 
 // Import route handlers
 const authRoutes = require('./routes/auth');
@@ -53,13 +54,30 @@ app.use(helmet({
   }
 }));
 
-// CORS configuration - restrict to admin client only
+// CORS configuration - allow all origins in development, restrict in production
 const corsOptions = {
-  origin: [
-    'http://localhost:5174',
-    'http://192.168.88.208:5174',
-    process.env.ADMIN_CLIENT_URL || 'http://localhost:5174'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // In production, check against allowed list
+    const allowedOrigins = [
+      'http://localhost:5174',
+      'http://192.168.88.208:5174',
+      process.env.ADMIN_CLIENT_URL || 'http://localhost:5174'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -180,8 +198,11 @@ const startServer = async () => {
       process.exit(1);
     }
 
+    // Ensure admin user exists
+    await ensureAdminUser();
+
     // Start server
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`\n🚀 Admin Server running on port ${PORT}`);
       console.log(`🔐 Authentication: JWT-based`);
       console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
@@ -189,6 +210,9 @@ const startServer = async () => {
       console.log(`🔗 Admin Client URL: ${process.env.ADMIN_CLIENT_URL || 'http://localhost:5174'}`);
       console.log(`\n✅ Admin system is ready for enterprise use\n`);
     });
+
+    // Store server reference for graceful shutdown
+    app.server = server;
 
   } catch (err) {
     console.error('Failed to start admin server:', err);
@@ -204,16 +228,21 @@ const gracefulShutdown = (signal) => {
   console.log(`\n${signal} received. Starting graceful shutdown...`);
   
   // Close server
-  server.close(() => {
-    console.log('HTTP server closed');
-    
-    // Close database pool
-    const { pool } = require('./db/pool');
-    pool.end(() => {
-      console.log('Database pool closed');
-      process.exit(0);
+  if (app.server) {
+    app.server.close(() => {
+      console.log('HTTP server closed');
+      
+      // Close database pool
+      const { pool } = require('./db/pool');
+      pool.end(() => {
+        console.log('Database pool closed');
+        process.exit(0);
+      });
     });
-  });
+  } else {
+    console.log('No server to close');
+    process.exit(0);
+  }
 
   // Force shutdown after 30 seconds
   setTimeout(() => {
@@ -238,12 +267,35 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Start the server
-const server = app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
-});
-
-// Replace the server reference for graceful shutdown
-app.listen = () => server;
+// Ensure admin user exists, create if not
+const ensureAdminUser = async () => {
+  try {
+    // Check if admin user exists
+    const result = await pool.query('SELECT * FROM admin_users WHERE username = $1', ['admin']);
+    
+    if (result.rows.length === 0) {
+      console.log('👤 Admin user not found. Creating default admin...');
+      const passwordHash = await bcrypt.hash('admin123', 12);
+      
+      await pool.query(`
+        INSERT INTO admin_users (username, email, password_hash, role, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+      `, ['admin', 'admin@openzagora.local', passwordHash, 'super_admin', true]);
+      
+      console.log('✅ Admin user created successfully');
+      console.log('   Username: admin');
+      console.log('   Password: admin123');
+      console.log('   Role: super_admin');
+    } else {
+      console.log('✅ Admin user already exists');
+      console.log('   Username:', result.rows[0].username);
+      console.log('   Role:', result.rows[0].role);
+      console.log('   Active:', result.rows[0].is_active);
+    }
+  } catch (err) {
+    console.error('❌ Error ensuring admin user:', err.message);
+    // Don't exit - the server can still run without admin
+  }
+};
 
 startServer();

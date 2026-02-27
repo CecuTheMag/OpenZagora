@@ -14,7 +14,8 @@ const pdfParse = require('pdf-parse');
 const { Pool } = require('pg');
 const router = express.Router();
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { logAuditEvent } = require('../db/pool');
+const { pool, logAuditEvent } = require('../db/pool');
+const { DocumentClassifier, parseDocument, getInsertStatements } = require('../parsers');
 
 // ==========================================
 // MAIN DATABASE CONNECTION
@@ -136,8 +137,8 @@ router.post('/', upload.single('pdf'), async (req, res) => {
 
     console.log(`✅ [ADMIN] PDF parsed successfully. Pages: ${pdfData.numpages}, Text length: ${rawText.length}`);
 
-    // Save parsed data to JSON backup
-    const parsedData = {
+    // Save raw data to JSON backup
+    const rawData = {
       uploadedBy: req.user.username,
       uploadedById: req.user.id,
       originalName: originalname,
@@ -152,30 +153,62 @@ router.post('/', upload.single('pdf'), async (req, res) => {
     };
 
     const parsedFilePath = path.join(__dirname, '..', 'parsed', `${filename}.json`);
-    await fs.writeFile(parsedFilePath, JSON.stringify(parsedData, null, 2));
+    await fs.writeFile(parsedFilePath, JSON.stringify(rawData, null, 2));
 
-    // Store in MAIN database based on document type
-    let dbResult = null;
-    let resourceId = null;
+    // Classify document and use smart parsing
+    const classifier = new DocumentClassifier();
+    const classification = classifier.classify(originalname);
     
-    switch (documentType) {
-      case 'project':
-        dbResult = await storeProjectDocument(rawText, filename, customTitle, customDescription);
-        resourceId = dbResult.id;
-        break;
-      case 'budget':
-        dbResult = await storeBudgetDocument(rawText, filename, customTitle);
-        resourceId = dbResult.id;
-        break;
-      case 'vote':
-      case 'council_vote':
-        dbResult = await storeVoteDocument(rawText, filename, customTitle);
-        resourceId = dbResult.id;
-        break;
-      default:
-        // Store as generic document in projects table with unknown type
-        dbResult = await storeGenericDocument(rawText, filename, customTitle, customDescription);
-        resourceId = dbResult.id;
+    console.log(`📋 [ADMIN] Document classified as: ${classification.type} (${classification.subtype}) for year ${classification.year}`);
+
+    // Parse document with appropriate parser
+    const parsedResult = parseDocument(rawText, classification);
+    
+    if (!parsedResult.success) {
+      console.warn(`⚠️ [ADMIN] Parsing had issues:`, parsedResult.errors);
+    }
+
+    // Store document metadata
+    const docResult = await storeDocumentMetadata({
+      filename: filename,
+      originalName: originalname,
+      year: classification.year || new Date().getFullYear(),
+      documentType: classification.type,
+      documentSubtype: classification.subtype,
+      category: classification.description,
+      uploadedBy: req.user.username,
+      fileSize: size,
+      pageCount: pdfData.numpages,
+      rawText: rawText,
+      parsedData: parsedResult,
+      status: parsedResult.success ? 'parsed' : 'error'
+    });
+
+    const documentId = docResult.id;
+
+    // Store parsed data in appropriate tables
+    let storedItems = 0;
+    if (parsedResult.items && parsedResult.items.length > 0) {
+      const statements = getInsertStatements(parsedResult, documentId);
+      
+      for (const stmt of statements) {
+        try {
+          await mainPool.query(stmt.query, stmt.params);
+          storedItems++;
+        } catch (err) {
+          console.error('Error storing parsed item:', err);
+        }
+      }
+    }
+
+    // Also store in legacy tables for backward compatibility
+    let legacyResult = null;
+    if (documentType === 'budget' || classification.type === 'income' || classification.type === 'expense') {
+      legacyResult = await storeBudgetDocument(rawText, filename, customTitle || classification.description);
+    } else if (documentType === 'project') {
+      legacyResult = await storeProjectDocument(rawText, filename, customTitle, customDescription);
+    } else if (documentType === 'vote' || documentType === 'council_vote') {
+      legacyResult = await storeVoteDocument(rawText, filename, customTitle);
     }
 
     // Update audit log with success
@@ -183,17 +216,21 @@ router.post('/', upload.single('pdf'), async (req, res) => {
       adminUserId: req.user.id,
       action: 'upload_success',
       resourceType: 'pdf',
-      resourceId: resourceId,
+      resourceId: documentId,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       details: {
         originalName: originalname,
         fileName: filename,
-        documentType: documentType,
+        documentType: classification.type,
+        documentSubtype: classification.subtype,
+        year: classification.year,
         pageCount: pdfData.numpages,
         textLength: rawText.length,
-        databaseTable: dbResult.table,
-        databaseId: resourceId
+        itemsParsed: parsedResult.items ? parsedResult.items.length : 0,
+        itemsStored: storedItems,
+        classification: classification,
+        legacyTable: legacyResult ? legacyResult.table : null
       },
       success: true
     });
@@ -205,11 +242,21 @@ router.post('/', upload.single('pdf'), async (req, res) => {
         uploadedBy: req.user.username,
         originalName: originalname,
         fileName: filename,
-        documentType: documentType,
+        documentType: classification.type,
+        documentSubtype: classification.subtype,
+        year: classification.year,
         pageCount: pdfData.numpages,
         textLength: rawText.length,
         textPreview: rawText.substring(0, 500) + (rawText.length > 500 ? '...' : ''),
-        databaseResult: dbResult,
+        classification: classification,
+        parsedData: {
+          totalItems: parsedResult.totalItems || 0,
+          totalAmount: parsedResult.totalAmount || parsedResult.totalApproved || 0,
+          items: parsedResult.items ? parsedResult.items.slice(0, 5) : [] // First 5 items only
+        },
+        storedItems: storedItems,
+        documentId: documentId,
+        legacyResult: legacyResult,
         parsedFile: parsedFilePath,
         uploadedAt: new Date().toISOString()
       }
@@ -362,6 +409,39 @@ async function storeGenericDocument(text, filename, customTitle, customDescripti
   return storeProjectDocument(text, filename, customTitle || 'Unknown Document', customDescription);
 }
 
+// Store document metadata in budget_documents table
+async function storeDocumentMetadata(metadata) {
+  const query = `
+    INSERT INTO budget_documents 
+    (filename, original_name, year, document_type, document_subtype, category, 
+     uploaded_by, file_size, page_count, raw_text, parsed_data, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    RETURNING id
+  `;
+  
+  const params = [
+    metadata.filename,
+    metadata.originalName,
+    metadata.year,
+    metadata.documentType,
+    metadata.documentSubtype,
+    metadata.category,
+    metadata.uploadedBy,
+    metadata.fileSize,
+    metadata.pageCount,
+    metadata.rawText.substring(0, 10000), // Limit raw text storage
+    JSON.stringify(metadata.parsedData),
+    metadata.status
+  ];
+  
+  const result = await mainPool.query(query, params);
+  
+  return {
+    table: 'budget_documents',
+    id: result.rows[0].id
+  };
+}
+
 // ==========================================
 // GET /api/admin/upload/history
 // Get upload history for current admin user
@@ -403,21 +483,100 @@ router.get('/history', async (req, res) => {
 });
 
 // ==========================================
+// ==========================================
 // GET /api/admin/upload/status
 // Check upload endpoint status
 // ==========================================
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
+  // Get supported document types from classifier
+  const classifier = new DocumentClassifier();
+  const supportedTypes = classifier.getSupportedTypes();
+  
   res.json({
     status: 'ready',
     acceptedTypes: ['application/pdf'],
     maxFileSize: '50MB',
-    supportedDocumentTypes: ['project', 'budget', 'vote', 'council_vote', 'unknown'],
+    supportedDocumentTypes: supportedTypes.map(t => ({
+      type: t.type,
+      subtype: t.subtype,
+      description: t.description,
+      pattern: t.regex.toString()
+    })),
+    smartParsing: true,
     authenticated: true,
     user: {
       username: req.user.username,
       role: req.user.role
     }
   });
+});
+
+// ==========================================
+// GET /api/admin/upload/documents
+// Get list of uploaded documents with metadata
+// ==========================================
+router.get('/documents', async (req, res) => {
+  try {
+    const { year, type, limit = 50, offset = 0 } = req.query;
+    
+    let query = `
+      SELECT 
+        id,
+        filename,
+        original_name,
+        year,
+        document_type,
+        document_subtype,
+        category,
+        uploaded_by,
+        uploaded_at,
+        file_size,
+        page_count,
+        status,
+        (SELECT COUNT(*) FROM budget_income WHERE document_id = budget_documents.id) as income_count,
+        (SELECT COUNT(*) FROM budget_expenses WHERE document_id = budget_documents.id) as expenses_count,
+        (SELECT COUNT(*) FROM budget_indicators WHERE document_id = budget_documents.id) as indicators_count,
+        (SELECT COUNT(*) FROM budget_loans WHERE document_id = budget_documents.id) as loans_count
+      FROM budget_documents
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+    
+    if (year) {
+      query += ` AND year = $${paramIndex}`;
+      params.push(parseInt(year));
+      paramIndex++;
+    }
+    
+    if (type) {
+      query += ` AND document_type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY uploaded_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const result = await mainPool.query(query, params);
+    
+    res.json({
+      success: true,
+      data: {
+        documents: result.rows,
+        total: result.rows.length,
+        filters: { year, type }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    res.status(500).json({
+      error: 'Failed to fetch documents',
+      message: error.message
+    });
+  }
 });
 
 module.exports = router;

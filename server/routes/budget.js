@@ -1,372 +1,502 @@
 /**
  * Budget API Routes
  * 
- * Handles budget data retrieval and visualization data
- * for the municipal budget dashboard.
+ * Provides endpoints for accessing parsed budget data
+ * from uploaded PDF documents.
  */
 
 const express = require('express');
+const router = express.Router();
 const { pool } = require('../db/pool');
 
-const router = express.Router();
-
 // ==========================================
-// GET ENDPOINTS
+// API ROUTES
 // ==========================================
 
-/**
- * GET /api/budget
- * 
- * Retrieve all budget items with optional filtering
- * Query params:
- *   - year: filter by year
- *   - category: filter by category
- */
+// GET /api/budget
+// Get all budget items for a year (used by BudgetPage.jsx)
 router.get('/', async (req, res) => {
   try {
-    const { year, category, limit = 100, offset = 0 } = req.query;
+    const { year, limit = 1000, offset = 0 } = req.query;
     
-    let query = 'SELECT * FROM budget_items WHERE 1=1';
+    if (!year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year parameter is required'
+      });
+    }
+
+    const yearInt = parseInt(year);
+    const limitInt = Math.min(parseInt(limit), 1000);
+    const offsetInt = parseInt(offset);
+
+    // Get income items
+    const incomeResult = await pool.query(`
+      SELECT 
+        id,
+        code,
+        name as description,
+        amount,
+        'Income' as category,
+        document_id,
+        created_at
+      FROM budget_income
+      WHERE year = $1
+      ORDER BY amount DESC
+      LIMIT $2 OFFSET $3
+    `, [yearInt, limitInt, offsetInt]);
+
+    // Get expense items
+    const expenseResult = await pool.query(`
+      SELECT 
+        id,
+        function_code as code,
+        function_name as name,
+        amount,
+        'Expenses' as category,
+        document_id,
+        created_at
+      FROM budget_expenses
+      WHERE year = $1
+      ORDER BY amount DESC
+      LIMIT $2 OFFSET $3
+    `, [yearInt, limitInt, offsetInt]);
+
+    // Combine and format results
+    const allItems = [
+      ...incomeResult.rows.map(item => ({
+        ...item,
+        amount: parseFloat(item.amount),
+        type: 'income'
+      })),
+      ...expenseResult.rows.map(item => ({
+        ...item,
+        amount: parseFloat(item.amount),
+        type: 'expense'
+      }))
+    ].sort((a, b) => b.amount - a.amount);
+
+    // Get total count
+    const countResult = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM budget_income WHERE year = $1) +
+        (SELECT COUNT(*) FROM budget_expenses WHERE year = $1) as total
+    `, [yearInt]);
+
+    res.json({
+      success: true,
+      data: allItems,
+      pagination: {
+        year: yearInt,
+        limit: limitInt,
+        offset: offsetInt,
+        total: parseInt(countResult.rows[0].total),
+        hasMore: allItems.length === limitInt
+      }
+    });
+
+  } catch (err) {
+    console.error('Error fetching budget items:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch budget items',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/years
+// Get all years with budget data
+router.get('/years', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT year FROM (
+        SELECT year FROM budget_income
+        UNION
+        SELECT year FROM budget_expenses
+        UNION
+        SELECT year FROM budget_indicators
+        UNION
+        SELECT year FROM budget_loans
+        UNION
+        SELECT year FROM budget_summary
+      ) years
+      WHERE year IS NOT NULL
+      ORDER BY year DESC
+    `);
+
+    const years = result.rows.map(row => row.year);
+
+    res.json({
+      success: true,
+      data: {
+        years,
+        count: years.length
+      }
+    });
+
+  } catch (err) {
+    console.error('Error fetching years:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch budget years',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/summary
+// Get budget summary - supports both dashboard (no year) and budget page (with year)
+router.get('/summary', async (req, res) => {
+  try {
+    const { year } = req.query;
+    
+    // If no year provided, return dashboard summary (grand total across all years)
+    if (!year) {
+      // Get total income across all years
+      const incomeResult = await pool.query(`
+        SELECT COALESCE(SUM(amount), 0) as total FROM budget_income
+      `);
+      
+      // Get total expenses across all years
+      const expenseResult = await pool.query(`
+        SELECT COALESCE(SUM(amount), 0) as total FROM budget_expenses
+      `);
+      
+      // Get total loans across all years
+      const loanResult = await pool.query(`
+        SELECT COALESCE(SUM(original_amount), 0) as total FROM budget_loans
+      `);
+
+      const totalIncome = parseFloat(incomeResult.rows[0].total);
+      const totalExpenses = parseFloat(expenseResult.rows[0].total);
+      const totalLoans = parseFloat(loanResult.rows[0].total);
+      const grandTotal = totalIncome + totalExpenses + totalLoans;
+
+      return res.json({
+        success: true,
+        grandTotal: grandTotal,
+        totalIncome: totalIncome,
+        totalExpenses: totalExpenses,
+        totalLoans: totalLoans,
+        data: []
+      });
+    }
+
+    // With year - return category breakdown for BudgetPage
+    const yearInt = parseInt(year);
+
+    // Get income data grouped by code (for categories)
+    const incomeResult = await pool.query(`
+      SELECT 
+        code as category,
+        SUM(amount) as total_amount,
+        COUNT(*) as item_count
+      FROM budget_income
+      WHERE year = $1
+      GROUP BY code
+      ORDER BY total_amount DESC
+    `, [yearInt]);
+
+    // Get expense data grouped by function
+    const expenseResult = await pool.query(`
+      SELECT 
+        function_code as category,
+        SUM(amount) as total_amount,
+        COUNT(*) as item_count
+      FROM budget_expenses
+      WHERE year = $1
+      GROUP BY function_code
+      ORDER BY total_amount DESC
+    `, [yearInt]);
+
+    // Combine and format for charts
+    const categories = [];
+    
+    // Add income categories
+    incomeResult.rows.forEach(row => {
+      categories.push({
+        category: `Income ${row.category}`,
+        total_amount: parseFloat(row.total_amount),
+        item_count: parseInt(row.item_count),
+        type: 'income'
+      });
+    });
+
+    // Add expense categories
+    expenseResult.rows.forEach(row => {
+      categories.push({
+        category: `Expense ${row.category}`,
+        total_amount: parseFloat(row.total_amount),
+        item_count: parseInt(row.item_count),
+        type: 'expense'
+      });
+    });
+
+    // Calculate total and percentages
+    const totalBudget = categories.reduce((sum, item) => sum + item.total_amount, 0);
+    
+    const categoriesWithPercentage = categories.map(item => ({
+      ...item,
+      percentage: totalBudget > 0 ? Math.round((item.total_amount / totalBudget) * 100) : 0
+    }));
+
+    res.json({
+      success: true,
+      data: categoriesWithPercentage
+    });
+
+  } catch (err) {
+    console.error('Error fetching budget summary:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch budget summary',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/income
+// Get income data for a year
+router.get('/income', async (req, res) => {
+  try {
+    const { year } = req.query;
+    
+    if (!year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year parameter is required'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        id,
+        code,
+        name,
+        amount,
+        document_id,
+        created_at
+      FROM budget_income
+      WHERE year = $1
+      ORDER BY amount DESC
+    `, [parseInt(year)]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        ...row,
+        amount: parseFloat(row.amount)
+      }))
+    });
+
+  } catch (err) {
+    console.error('Error fetching income data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch income data',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/expenses
+// Get expense data for a year
+router.get('/expenses', async (req, res) => {
+  try {
+    const { year } = req.query;
+    
+    if (!year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year parameter is required'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        id,
+        code,
+        name,
+        function_code,
+        program_code,
+        amount,
+        document_id,
+        created_at
+      FROM budget_expenses
+      WHERE year = $1
+      ORDER BY amount DESC
+    `, [parseInt(year)]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        ...row,
+        amount: parseFloat(row.amount)
+      }))
+    });
+
+  } catch (err) {
+    console.error('Error fetching expense data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch expense data',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/indicators
+// Get indicator data for a year
+router.get('/indicators', async (req, res) => {
+  try {
+    const { year, department } = req.query;
+    
+    if (!year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year parameter is required'
+      });
+    }
+
+    let query = `
+      SELECT 
+        id,
+        indicator_code,
+        department_code,
+        department_name,
+        indicator_name,
+        value,
+        unit,
+        document_id,
+        created_at
+      FROM budget_indicators
+      WHERE year = $1
+    `;
+    const params = [parseInt(year)];
+
+    if (department) {
+      query += ` AND department_code = $2`;
+      params.push(department);
+    }
+
+    query += ` ORDER BY department_code, indicator_code`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (err) {
+    console.error('Error fetching indicator data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch indicator data',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/loans
+// Get loan data for a year
+router.get('/loans', async (req, res) => {
+  try {
+    const { year } = req.query;
+    
+    if (!year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year parameter is required'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        id,
+        loan_type,
+        creditor,
+        amount,
+        currency,
+        interest_rate,
+        term_months,
+        purpose,
+        document_id,
+        created_at
+      FROM budget_loans
+      WHERE year = $1
+      ORDER BY amount DESC
+    `, [parseInt(year)]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        ...row,
+        amount: parseFloat(row.amount)
+      }))
+    });
+
+  } catch (err) {
+    console.error('Error fetching loan data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch loan data',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/documents
+// Get all uploaded budget documents
+router.get('/documents', async (req, res) => {
+  try {
+    const { year, type, limit = 100 } = req.query;
+    
+    let query = `
+      SELECT 
+        id,
+        filename,
+        original_name,
+        document_type,
+        year,
+        file_size,
+        page_count,
+        processed,
+        error_message,
+        created_at
+      FROM budget_documents
+      WHERE 1=1
+    `;
     const params = [];
     let paramIndex = 1;
 
     if (year) {
-      query += ` AND year = $${paramIndex}`;
+      query += ` AND year = $${paramIndex++}`;
       params.push(parseInt(year));
-      paramIndex++;
     }
 
-    if (category) {
-      query += ` AND category ILIKE $${paramIndex}`;
-      params.push(`%${category}%`);
-      paramIndex++;
+    if (type) {
+      query += ` AND document_type = $${paramIndex++}`;
+      params.push(type);
     }
 
-    query += ` ORDER BY amount DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(parseInt(limit), parseInt(offset));
+    query += ` ORDER BY year DESC, created_at DESC LIMIT $${paramIndex++}`;
+    params.push(parseInt(limit));
 
     const result = await pool.query(query, params);
 
-    // Get total count
-    const countQuery = `
-      SELECT COUNT(*) FROM budget_items WHERE 1=1
-      ${year ? ` AND year = ${year}` : ''}
-      ${category ? ` AND category ILIKE '%${category}%'` : ''}
-    `;
-    const countResult = await pool.query(countQuery);
-
-    // Calculate totals
-    const totalAmount = result.rows.reduce((sum, item) => sum + parseFloat(item.amount), 0);
-
     res.json({
       success: true,
-      data: result.rows,
-      summary: {
-        totalAmount: totalAmount,
-        itemCount: result.rows.length,
-        year: year || 'all'
-      },
-      pagination: {
-        total: parseInt(countResult.rows[0].count),
-        limit: parseInt(limit),
-        offset: parseInt(offset)
-      }
+      data: result.rows
     });
 
-  } catch (error) {
-    console.error('Error fetching budget items:', error);
+  } catch (err) {
+    console.error('Error fetching documents:', err);
     res.status(500).json({
-      error: 'Failed to fetch budget items',
-      message: error.message
-    });
-  }
-});
-
-/**
- * GET /api/budget/summary
- * 
- * Get budget summary by category for charts
- * Returns aggregated data suitable for pie/bar charts
- */
-router.get('/summary', async (req, res) => {
-  try {
-    const { year = new Date().getFullYear() } = req.query;
-
-    const query = `
-      SELECT 
-        category,
-        SUM(amount) as total_amount,
-        COUNT(*) as item_count,
-        ROUND(SUM(amount) * 100.0 / (SELECT SUM(amount) FROM budget_items WHERE year = $1), 2) as percentage
-      FROM budget_items
-      WHERE year = $1
-      GROUP BY category
-      ORDER BY total_amount DESC
-    `;
-
-    const result = await pool.query(query, [parseInt(year)]);
-
-    // Calculate grand total
-    const grandTotal = result.rows.reduce((sum, item) => sum + parseFloat(item.total_amount), 0);
-
-    res.json({
-      success: true,
-      year: parseInt(year),
-      data: result.rows,
-      grandTotal: grandTotal
-    });
-
-  } catch (error) {
-    console.error('Error fetching budget summary:', error);
-    res.status(500).json({
-      error: 'Failed to fetch budget summary',
-      message: error.message
-    });
-  }
-});
-
-/**
- * GET /api/budget/years
- * 
- * Get list of available years in the budget data
- */
-router.get('/years', async (req, res) => {
-  try {
-    const query = `
-      SELECT DISTINCT year 
-      FROM budget_items 
-      ORDER BY year DESC
-    `;
-
-    const result = await pool.query(query);
-
-    res.json({
-      success: true,
-      years: result.rows.map(row => row.year)
-    });
-
-  } catch (error) {
-    console.error('Error fetching budget years:', error);
-    res.status(500).json({
-      error: 'Failed to fetch budget years',
-      message: error.message
-    });
-  }
-});
-
-/**
- * GET /api/budget/trends
- * 
- * Get budget trends over multiple years
- * Returns year-over-year comparison data
- */
-router.get('/trends', async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        year,
-        category,
-        SUM(amount) as total_amount
-      FROM budget_items
-      GROUP BY year, category
-      ORDER BY year DESC, total_amount DESC
-    `;
-
-    const result = await pool.query(query);
-
-    // Transform data for easier chart consumption
-    const trends = {};
-    result.rows.forEach(row => {
-      if (!trends[row.year]) {
-        trends[row.year] = {};
-      }
-      trends[row.year][row.category] = parseFloat(row.total_amount);
-    });
-
-    res.json({
-      success: true,
-      data: trends
-    });
-
-  } catch (error) {
-    console.error('Error fetching budget trends:', error);
-    res.status(500).json({
-      error: 'Failed to fetch budget trends',
-      message: error.message
-    });
-  }
-});
-
-/**
- * GET /api/budget/:id
- * 
- * Get a single budget item by ID
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const query = 'SELECT * FROM budget_items WHERE id = $1';
-    const result = await pool.query(query, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Budget item not found',
-        message: `No budget item found with ID: ${id}`
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('Error fetching budget item:', error);
-    res.status(500).json({
-      error: 'Failed to fetch budget item',
-      message: error.message
-    });
-  }
-});
-
-// ==========================================
-// POST ENDPOINTS
-// ==========================================
-
-/**
- * POST /api/budget
- * 
- * Create a new budget item
- * Body: { category, amount, year, description }
- */
-router.post('/', async (req, res) => {
-  try {
-    const { category, amount, year, description } = req.body;
-
-    // Validate required fields
-    if (!category || !amount || !year) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        message: 'Category, amount, and year are required'
-      });
-    }
-
-    const query = `
-      INSERT INTO budget_items (category, amount, year, description)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, [
-      category,
-      amount,
-      year,
-      description
-    ]);
-
-    res.status(201).json({
-      success: true,
-      message: 'Budget item created successfully',
-      data: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('Error creating budget item:', error);
-    res.status(500).json({
-      error: 'Failed to create budget item',
-      message: error.message
-    });
-  }
-});
-
-// ==========================================
-// PUT/PATCH ENDPOINTS
-// ==========================================
-
-/**
- * PUT /api/budget/:id
- * 
- * Update a budget item
- */
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { category, amount, year, description } = req.body;
-
-    const query = `
-      UPDATE budget_items 
-      SET category = COALESCE($1, category),
-          amount = COALESCE($2, amount),
-          year = COALESCE($3, year),
-          description = COALESCE($4, description)
-      WHERE id = $5
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, [
-      category,
-      amount,
-      year,
-      description,
-      id
-    ]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Budget item not found',
-        message: `No budget item found with ID: ${id}`
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Budget item updated successfully',
-      data: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('Error updating budget item:', error);
-    res.status(500).json({
-      error: 'Failed to update budget item',
-      message: error.message
-    });
-  }
-});
-
-// ==========================================
-// DELETE ENDPOINTS
-// ==========================================
-
-/**
- * DELETE /api/budget/:id
- * 
- * Delete a budget item
- */
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const query = 'DELETE FROM budget_items WHERE id = $1 RETURNING id';
-    const result = await pool.query(query, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Budget item not found',
-        message: `No budget item found with ID: ${id}`
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'Budget item deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Error deleting budget item:', error);
-    res.status(500).json({
-      error: 'Failed to delete budget item',
-      message: error.message
+      success: false,
+      error: 'Failed to fetch documents',
+      message: err.message
     });
   }
 });
