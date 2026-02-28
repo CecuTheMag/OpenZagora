@@ -11,7 +11,7 @@ import {
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock
+  Database, Lock, FolderOpen, Zip
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -28,6 +28,14 @@ const AdminDashboard = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [uploadHistory, setUploadHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // Folder upload state
+  const [activeTab, setActiveTab] = useState('single'); // 'single' or 'folder'
+  const [folderPath, setFolderPath] = useState('');
+  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [isProcessingFolder, setIsProcessingFolder] = useState(false);
+  const [folderResult, setFolderResult] = useState(null);
+  const [folderError, setFolderError] = useState(null);
   
   const fileInputRef = useRef(null);
 
@@ -163,6 +171,40 @@ const AdminDashboard = () => {
     setShowHistory(!showHistory);
   };
 
+  // Handle folder upload
+  const handleFolderUpload = async () => {
+    if (!folderPath.trim()) {
+      setFolderError('Please enter a folder path');
+      return;
+    }
+
+    setIsProcessingFolder(true);
+    setFolderError(null);
+    setFolderResult(null);
+
+    try {
+      const response = await api.post('/api/admin/upload/folder', {
+        folderPath: folderPath.trim(),
+        year: year
+      });
+
+      if (response.data.success) {
+        setFolderResult(response.data.data);
+        
+        // Refresh upload history
+        if (showHistory) {
+          fetchUploadHistory();
+        }
+      }
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Folder processing failed. Please check the path and try again.';
+      setFolderError(errorMessage);
+      console.error('Folder upload error:', err);
+    } finally {
+      setIsProcessingFolder(false);
+    }
+  };
+
   // Clear selected file
   const clearFile = () => {
     setSelectedFile(null);
@@ -227,7 +269,7 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      {/* Main Content */}
+{/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Upload Form */}
@@ -245,176 +287,313 @@ const AdminDashboard = () => {
                 </div>
               </div>
               
-              <div className="card-body space-y-6">
-                {/* Document Type Selection */}
-                <div>
-                  <label className="form-label">Document Type</label>
-                  <select
-                    value={documentType}
-                    onChange={(e) => setDocumentType(e.target.value)}
-                    className="form-input"
-                    disabled={isUploading}
+              {/* Tab Selection */}
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex" aria-label="Tabs">
+                  <button
+                    onClick={() => setActiveTab('single')}
+                    className={`w-1/2 py-3 px-1 text-center border-b-2 font-medium text-sm ${
+                      activeTab === 'single'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                   >
-                    <option value="project">Municipal Project</option>
-                    <option value="budget">Budget Document</option>
-                    <option value="vote">Council Vote Record</option>
-                    <option value="unknown">Other Document</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    This determines how the document is processed and stored
-                  </p>
-                </div>
-
-                {/* Custom Title (Optional) */}
-                <div>
-                  <label className="form-label">
-                    Custom Title <span className="text-gray-400 font-normal">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={customTitle}
-                    onChange={(e) => setCustomTitle(e.target.value)}
-                    className="form-input"
-                    placeholder="Override extracted title"
-                    disabled={isUploading}
-                  />
-                </div>
-
-                {/* Custom Description (Optional) */}
-                <div>
-                  <label className="form-label">
-                    Description <span className="text-gray-400 font-normal">(Optional)</span>
-                  </label>
-                  <textarea
-                    value={customDescription}
-                    onChange={(e) => setCustomDescription(e.target.value)}
-                    className="form-input"
-                    rows={3}
-                    placeholder="Additional context about this document"
-                    disabled={isUploading}
-                  />
-                </div>
-
-                {/* Drag and Drop Zone */}
-                <div>
-                  <label className="form-label">PDF File</label>
-                  
-                  {!selectedFile ? (
-                    <div
-                      className={`drag-drop-zone ${dragActive ? 'drag-over' : ''}`}
-                      onDragEnter={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDragOver={handleDrag}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,application/pdf"
-                        onChange={handleFileInputChange}
-                        className="hidden"
+                    <FileText className="h-4 w-4 inline mr-2" />
+                    Single File
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('folder')}
+                    className={`w-1/2 py-3 px-1 text-center border-b-2 font-medium text-sm ${
+                      activeTab === 'folder'
+                        ? 'border-primary-600 text-primary-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <FolderOpen className="h-4 w-4 inline mr-2" />
+                    Full Year Folder
+                  </button>
+                </nav>
+              </div>
+              
+              <div className="card-body space-y-6">
+                {activeTab === 'single' ? (
+                  <>
+                    {/* Document Type Selection */}
+                    <div>
+                      <label className="form-label">Document Type</label>
+                      <select
+                        value={documentType}
+                        onChange={(e) => setDocumentType(e.target.value)}
+                        className="form-input"
                         disabled={isUploading}
-                      />
-                      <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-lg font-medium text-gray-900 mb-2">
-                        Drop your PDF here
-                      </p>
-                      <p className="text-sm text-gray-500 mb-4">
-                        or click to browse from your computer
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        Maximum file size: 50MB
+                      >
+                        <option value="project">Municipal Project</option>
+                        <option value="budget">Budget Document</option>
+                        <option value="vote">Council Vote Record</option>
+                        <option value="unknown">Other Document</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        This determines how the document is processed and stored
                       </p>
                     </div>
-                  ) : (
-                    <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <FileText className="h-8 w-8 text-primary-600 mr-3" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {selectedFile.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        </div>
-                        {!isUploading && (
-                          <button
-                            onClick={clearFile}
-                            className="text-gray-400 hover:text-danger-600 transition-colors"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
-                        )}
-                      </div>
+
+                    {/* Custom Title (Optional) */}
+                    <div>
+                      <label className="form-label">
+                        Custom Title <span className="text-gray-400 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={customTitle}
+                        onChange={(e) => setCustomTitle(e.target.value)}
+                        className="form-input"
+                        placeholder="Override extracted title"
+                        disabled={isUploading}
+                      />
+                    </div>
+
+                    {/* Custom Description (Optional) */}
+                    <div>
+                      <label className="form-label">
+                        Description <span className="text-gray-400 font-normal">(Optional)</span>
+                      </label>
+                      <textarea
+                        value={customDescription}
+                        onChange={(e) => setCustomDescription(e.target.value)}
+                        className="form-input"
+                        rows={3}
+                        placeholder="Additional context about this document"
+                        disabled={isUploading}
+                      />
+                    </div>
+
+                    {/* Drag and Drop Zone */}
+                    <div>
+                      <label className="form-label">PDF File</label>
                       
-                      {isUploading && (
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                            <span>Uploading...</span>
-                            <span>{uploadProgress}%</span>
+                      {!selectedFile ? (
+                        <div
+                          className={`drag-drop-zone ${dragActive ? 'drag-over' : ''}`}
+                          onDragEnter={handleDrag}
+                          onDragLeave={handleDrag}
+                          onDragOver={handleDrag}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            onChange={handleFileInputChange}
+                            className="hidden"
+                            disabled={isUploading}
+                          />
+                          <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-lg font-medium text-gray-900 mb-2">
+                            Drop your PDF here
+                          </p>
+                          <p className="text-sm text-gray-500 mb-4">
+                            or click to browse from your computer
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Maximum file size: 50MB
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <FileText className="h-8 w-8 text-primary-600 mr-3" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {selectedFile.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                            {!isUploading && (
+                              <button
+                                onClick={clearFile}
+                                className="text-gray-400 hover:text-danger-600 transition-colors"
+                              >
+                                <X className="h-5 w-5" />
+                              </button>
+                            )}
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${uploadProgress}%` }}
-                            />
-                          </div>
+                          
+                          {isUploading && (
+                            <div className="mt-4">
+                              <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                                <span>Uploading...</span>
+                                <span>{uploadProgress}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${uploadProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
 
-                {/* Error Message */}
-                {uploadError && (
-                  <div className="alert-error flex items-start">
-                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>{uploadError}</span>
-                  </div>
-                )}
+                    {/* Error Message */}
+                    {uploadError && (
+                      <div className="alert-error flex items-start">
+                        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                        <span>{uploadError}</span>
+                      </div>
+                    )}
 
-                {/* Success Message */}
-                {uploadResult && (
-                  <div className="alert-success">
-                    <div className="flex items-start">
-                      <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium">Upload successful!</p>
-                        <p className="text-sm mt-1">
-                          Document stored in {uploadResult.databaseResult?.table} table
-                          {uploadResult.databaseResult?.id && ` (ID: ${uploadResult.databaseResult.id})`}
-                        </p>
-                        <p className="text-sm mt-1">
-                          Pages: {uploadResult.pageCount} | 
-                          Text: {uploadResult.textLength.toLocaleString()} characters
-                        </p>
+                    {/* Success Message */}
+                    {uploadResult && (
+                      <div className="alert-success">
+                        <div className="flex items-start">
+                          <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium">Upload successful!</p>
+                            <p className="text-sm mt-1">
+                              Document stored in {uploadResult.databaseResult?.table} table
+                              {uploadResult.databaseResult?.id && ` (ID: ${uploadResult.databaseResult.id})`}
+                            </p>
+                            <p className="text-sm mt-1">
+                              Pages: {uploadResult.pageCount} | 
+                              Text: {uploadResult.textLength.toLocaleString()} characters
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
+                    <button
+                      onClick={handleUpload}
+                      disabled={!selectedFile || isUploading}
+                      className="btn-primary w-full"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-5 w-5 mr-2" />
+                          Upload PDF Document
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Folder Upload Section */}
+                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-start">
+                        <FolderOpen className="h-5 w-5 text-primary-600 mr-2 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-primary-900">Upload Full Year Budget</p>
+                          <p className="text-xs text-primary-700 mt-1">
+                            Select a folder containing all PDF budget files for a year (pr1, pr2, pr3, indicators, loans, etc.)
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* Upload Button */}
-                <button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || isUploading}
-                  className="btn-primary w-full"
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-5 w-5 mr-2" />
-                      Upload PDF Document
-                    </>
-                  )}
-                </button>
+                    {/* Year Selection */}
+                    <div>
+                      <label className="form-label">Budget Year</label>
+                      <select
+                        value={year}
+                        onChange={(e) => setYear(e.target.value)}
+                        className="form-input"
+                        disabled={isProcessingFolder}
+                      >
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                        <option value="2023">2023</option>
+                        <option value="2022">2022</option>
+                        <option value="2020">2020</option>
+                      </select>
+                    </div>
+
+                    {/* Folder Path Input */}
+                    <div>
+                      <label className="form-label">Folder Path</label>
+                      <input
+                        type="text"
+                        value={folderPath}
+                        onChange={(e) => setFolderPath(e.target.value)}
+                        className="form-input"
+                        placeholder="/path/to/budget/2025_05_29_prilozhenia_byudzhet_2025"
+                        disabled={isProcessingFolder}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Enter the absolute path to the folder containing PDF files on the server
+                      </p>
+                    </div>
+
+                    {/* Example Path */}
+                    <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+                      <p className="font-medium mb-1">Example paths:</p>
+                      <p className="font-mono">/home/king/Documents/GitHub/OpenZagora/info/wqoidcwd/budjet/2025_05_29_prilozhenia_byudzhet_2025</p>
+                      <p className="font-mono mt-1">./info/wqoidcwd/budjet/2025_05_29_prilozhenia_byudzhet_2025</p>
+                    </div>
+
+                    {/* Error Message */}
+                    {folderError && (
+                      <div className="alert-error flex items-start">
+                        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                        <span>{folderError}</span>
+                      </div>
+                    )}
+
+                    {/* Success Message */}
+                    {folderResult && (
+                      <div className="alert-success">
+                        <div className="flex items-start">
+                          <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium">Folder processed successfully!</p>
+                            <div className="text-sm mt-2 space-y-1">
+                              <p>Total files: {folderResult.totalFiles}</p>
+                              <p>Processed: {folderResult.processedSuccessfully}</p>
+                              <p>Failed: {folderResult.failedFiles}</p>
+                              <p className="font-medium mt-2">Summary:</p>
+                              <p>• Income documents: {folderResult.summary?.income || 0}</p>
+                              <p>• Expense documents: {folderResult.summary?.expenses || 0}</p>
+                              <p>• Indicator documents: {folderResult.summary?.indicators || 0}</p>
+                              <p>• Loan documents: {folderResult.summary?.loans || 0}</p>
+                              <p className="font-medium mt-2">Total items stored: {folderResult.summary?.totalItems || 0}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Process Folder Button */}
+                    <button
+                      onClick={handleFolderUpload}
+                      disabled={!folderPath.trim() || isProcessingFolder}
+                      className="btn-primary w-full"
+                    >
+                      {isProcessingFolder ? (
+                        <>
+                          <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
+                          Processing folder...
+                        </>
+                      ) : (
+                        <>
+                          <FolderOpen className="h-5 w-5 mr-2" />
+                          Process Year Folder
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

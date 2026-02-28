@@ -21,6 +21,8 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000, // Return error after 10 seconds if connection not established
   // Retry configuration for Docker startup
   allowExitOnIdle: false,
+  // Character encoding for Bulgarian/Cyrillic support
+  options: '-c client_encoding=UTF8',
 });
 
 // Handle pool errors for unexpected database disconnections

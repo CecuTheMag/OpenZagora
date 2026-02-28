@@ -1,0 +1,41 @@
+{
+  "filename": "Pr 13 indik razcheti-2025-d431.pdf",
+  "year": 2025,
+  "type": "income",
+  "itemsFound": 3,
+  "items": [
+    {
+      "code": "21-20",
+      "name": "Код 21-20",
+      "amount": 2027,
+      "sourceAmounts": [
+        2021,
+        2027
+      ]
+    },
+    {
+      "code": "63-00",
+      "name": "Други ЕС трансфери",
+      "amount": 28452845,
+      "sourceAmounts": [
+        2845,
+        2845,
+        28452845
+      ]
+    },
+    {
+      "code": "10-00",
+      "name": "Глоби и санкции",
+      "amount": 28452845,
+      "sourceAmounts": [
+        2845,
+        2845,
+        28452845
+      ]
+    }
+  ],
+  "totalTextItems": 123,
+  "rowCount": 56,
+  "pageCount": 1,
+  "parsedAt": "2026-02-28T16:40:17.065Z"
+}

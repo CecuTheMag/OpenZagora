@@ -28,10 +28,33 @@ const PORT = process.env.PORT || 5000;
 // ==========================================
 
 // Enable CORS for all origins (configure for production)
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // In production, check against allowed list
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://192.168.88.210:5173',
+      process.env.CLIENT_URL || 'http://localhost:5173'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Parse JSON request bodies
 app.use(express.json());

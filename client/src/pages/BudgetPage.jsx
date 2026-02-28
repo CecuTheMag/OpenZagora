@@ -1,11 +1,16 @@
 /**
- * Budget Page
+ * Budget Page - Enhanced Version
  * 
- * Visualizes municipal budget data using charts and tables.
- * Shows budget allocation by category with interactive charts.
+ * Visualizes municipal budget data using tabs for different categories:
+ * - Summary: Overview with charts
+ * - Income: Detailed income items from pr1 documents
+ * - Expenses: Detailed expenses from pr2 documents
+ * - Indicators: Budget indicators from dxxx documents
+ * - Loans: Loan information from loan documents
+ * - Documents: List of uploaded budget documents
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import {
   PieChart,
@@ -18,16 +23,38 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  LineChart,
+  Line
 } from 'recharts'
 import {
   DollarSign,
   TrendingUp,
+  TrendingDown,
   Calendar,
   Filter,
   Download,
+  Search,
+  FileText,
   PieChart as PieChartIcon,
-  BarChart3
+  BarChart3,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Wallet,
+  Building,
+  CreditCard,
+  FolderOpen,
+  Home,
+  Users,
+  Plane,
+  Bus,
+  Heart,
+  BookOpen,
+  Lightbulb,
+  TreePine,
+  MapPin,
+  TrendingUp as TrendIcon
 } from 'lucide-react'
 
 // API base URL
@@ -43,41 +70,107 @@ const COLORS = [
   '#ec4899', // pink-500
   '#06b6d4', // cyan-500
   '#84cc16', // lime-500
+  '#f97316', // orange-500
+  '#6366f1', // indigo-500
+  '#14b8a6', // teal-500
+  '#a855f7', // purple-500
+]
+
+// Function colors for expenses
+const FUNCTION_COLORS = {
+  '01': '#3b82f6', // General government services
+  '02': '#22c55e', // Defense
+  '03': '#f59e0b', // Public order
+  '04': '#ef4444', // Education
+  '05': '#8b5cf6', // Health
+  '06': '#ec4899', // Social welfare
+  '07': '#06b6d4', // Housing
+  '08': '#84cc16', // Recreation
+  '09': '#f97316', // Religion
+  '10': '#6366f1', // Agriculture
+  '11': '#14b8a6', // Industry
+  '12': '#a855f7', // Transport
+  '13': '#ec4899', // Communications
+  '14': '#f59e0b', // Other
+}
+
+// Tab definitions
+const TABS = [
+  { id: 'summary', label: 'Summary', icon: PieChartIcon },
+  { id: 'income', label: 'Income', icon: ArrowUpDown },
+  { id: 'expenses', label: 'Expenses', icon: Building },
+  { id: 'indicators', label: 'Indicators', icon: BarChart3 },
+  { id: 'loans', label: 'Loans', icon: CreditCard },
+  { id: 'villages', label: 'Villages', icon: MapPin },
+  { id: 'forecasts', label: 'Forecasts', icon: TrendIcon },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
 ]
 
 function BudgetPage() {
-  const [budgetData, setBudgetData] = useState([])
+  const [activeTab, setActiveTab] = useState('summary')
   const [years, setYears] = useState([])
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(2025)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [chartType, setChartType] = useState('pie') // 'pie' or 'bar'
-  const [rawData, setRawData] = useState([])
-
-  // Fetch budget data
+  
+  // Data states
+  const [incomeData, setIncomeData] = useState([])
+  const [expenseData, setExpenseData] = useState([])
+  const [indicatorData, setIndicatorData] = useState([])
+  const [loanData, setLoanData] = useState([])
+  const [villageData, setVillageData] = useState([])
+  const [forecastData, setForecastData] = useState([])
+  const [documentData, setDocumentData] = useState([])
+  const [summaryData, setSummaryData] = useState(null)
+  
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortConfig, setSortConfig] = useState({ key: 'amount', direction: 'desc' })
+  const [chartType, setChartType] = useState('bar')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  
+  // Fetch all data
   useEffect(() => {
-    fetchBudgetData()
-    fetchYears()
+    fetchAllData()
   }, [selectedYear])
 
-  const fetchBudgetData = async () => {
+  const fetchAllData = async () => {
+    setLoading(true)
+    setError(null)
+    
     try {
-      setLoading(true)
+      const [
+        yearsRes,
+        incomeRes,
+        expenseRes,
+        indicatorRes,
+        loanRes,
+        villageRes,
+        forecastRes,
+        documentRes,
+        summaryRes
+      ] = await Promise.all([
+        axios.get(`${API_URL}/budget/years`),
+        axios.get(`${API_URL}/budget/income?year=${selectedYear}`),
+        axios.get(`${API_URL}/budget/expenses?year=${selectedYear}`),
+        axios.get(`${API_URL}/budget/indicators?year=${selectedYear}`),
+        axios.get(`${API_URL}/budget/loans?year=${selectedYear}`),
+        axios.get(`${API_URL}/budget/villages?year=${selectedYear}`),
+        axios.get(`${API_URL}/budget/forecasts`),
+        axios.get(`${API_URL}/budget/documents?year=${selectedYear}&limit=100`),
+        axios.get(`${API_URL}/budget/summary?year=${selectedYear}`)
+      ])
       
-      // Fetch summary data for charts
-      const summaryRes = await axios.get(
-        `${API_URL}/budget/summary?year=${selectedYear}`
-      )
+      setYears(yearsRes.data.data?.years || [selectedYear])
+      setIncomeData(incomeRes.data.data || [])
+      setExpenseData(expenseRes.data.data || [])
+      setIndicatorData(indicatorRes.data.data || [])
+      setLoanData(loanRes.data.data || [])
+      setVillageData(villageRes.data.data || [])
+      setForecastData(forecastRes.data.data || [])
+      setDocumentData(documentRes.data.data || [])
+      setSummaryData(summaryRes.data)
       
-      // Fetch detailed data for table
-      const detailRes = await axios.get(
-        `${API_URL}/budget?year=${selectedYear}&limit=1000`
-      )
-
-      const summary = summaryRes.data.data || []
-      setBudgetData(summary)
-      setRawData(detailRes.data.data || [])
-      setError(null)
     } catch (err) {
       console.error('Error fetching budget data:', err)
       setError('Failed to load budget data. Please try again later.')
@@ -86,17 +179,9 @@ function BudgetPage() {
     }
   }
 
-  const fetchYears = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/budget/years`)
-      setYears(response.data.years || [new Date().getFullYear()])
-    } catch (err) {
-      console.error('Error fetching years:', err)
-    }
-  }
-
   // Format currency
   const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined) return 'N/A'
     return new Intl.NumberFormat('bg-BG', {
       style: 'currency',
       currency: 'BGN',
@@ -107,28 +192,115 @@ function BudgetPage() {
 
   // Format large numbers (millions)
   const formatMillions = (amount) => {
+    if (!amount) return '0'
     return `${(amount / 1000000).toFixed(1)}M`
   }
 
-  // Calculate total budget
-  const totalBudget = budgetData.reduce(
-    (sum, item) => sum + parseFloat(item.total_amount || 0),
-    0
-  )
+  // Format percentage
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return 'N/A'
+    return `${value}%`
+  }
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    const totalIncome = incomeData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
+    const totalExpenses = expenseData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
+    const totalIndicators = indicatorData.reduce((sum, item) => sum + parseFloat(item.amount_approved || 0), 0)
+    const totalLoans = loanData.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
+    
+    return {
+      income: totalIncome,
+      expenses: totalExpenses,
+      indicators: totalIndicators,
+      loans: totalLoans,
+      balance: totalIncome - totalExpenses
+    }
+  }, [incomeData, expenseData, indicatorData, loanData])
+
+  // Filter and sort data
+  const filterAndSortData = (data, searchKey = 'name', amountKey = 'amount') => {
+    let filtered = [...data]
+    
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(item => 
+        (item[searchKey] || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+    
+    // Filter by category
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(item => 
+        (item.code || '').startsWith(categoryFilter) ||
+        (item.function_code || '').startsWith(categoryFilter)
+      )
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      const aVal = a[sortConfig.key] || 0
+      const bVal = b[sortConfig.key] || 0
+      
+      if (sortConfig.direction === 'asc') {
+        return aVal > bVal ? 1 : -1
+      }
+      return aVal < bVal ? 1 : -1
+    })
+    
+    return filtered
+  }
+
+  // Sort handler
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+    }))
+  }
+
+  // Export to CSV
+  const exportToCSV = (data, filename) => {
+    if (!data.length) return
+    
+    const headers = Object.keys(data[0])
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => 
+        headers.map(h => {
+          const val = row[h]
+          // Escape quotes and wrap in quotes if contains comma
+          if (typeof val === 'string' && val.includes(',')) {
+            return `"${val.replace(/"/g, '""')}"`
+          }
+          return val
+        }).join(',')
+      )
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `${filename}_${selectedYear}.csv`
+    link.click()
+  }
 
   // Custom tooltip for charts
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload
+      const data = payload[0]?.payload || {}
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold text-gray-900">{data.category || label}</p>
-          <p className="text-primary-600">
-            {formatCurrency(data.total_amount || data.value)}
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg max-w-xs">
+          <p className="font-semibold text-gray-900">{data.name || label}</p>
+          <p className="text-primary-600 font-medium mt-1">
+            {formatCurrency(data.value || data.amount || data.total_amount)}
           </p>
-          <p className="text-sm text-gray-500">
-            {data.percentage || Math.round((data.value / totalBudget) * 100)}% of total
-          </p>
+          {data.percentage !== undefined && (
+            <p className="text-sm text-gray-500">
+              {data.percentage}% of total
+            </p>
+          )}
         </div>
       )
     }
@@ -148,8 +320,8 @@ function BudgetPage() {
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <p className="text-red-700">{error}</p>
         <button 
-          onClick={fetchBudgetData}
-          className="mt-4 btn-primary"
+          onClick={fetchAllData}
+          className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
         >
           Retry
         </button>
@@ -162,9 +334,9 @@ function BudgetPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Municipal Budget</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Municipal Budget {selectedYear}</h1>
           <p className="text-gray-600 mt-1">
-            Budget allocation and spending by category
+            Budget allocation, spending, and financial reports
           </p>
         </div>
 
@@ -174,7 +346,7 @@ function BudgetPage() {
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="input-field w-32"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           >
             {years.map((year) => (
               <option key={year} value={year}>{year}</option>
@@ -183,271 +355,1278 @@ function BudgetPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Budget</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {formatCurrency(totalBudget)}
-              </p>
-            </div>
-            <div className="p-3 bg-primary-100 rounded-lg">
-              <DollarSign className="h-8 w-8 text-primary-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Categories</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">
-                {budgetData.length}
-              </p>
-            </div>
-            <div className="p-3 bg-secondary-100 rounded-lg">
-              <Filter className="h-8 w-8 text-secondary-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Largest Category</p>
-              <p className="text-xl font-bold text-gray-900 mt-2">
-                {budgetData[0]?.category || 'N/A'}
-              </p>
-              <p className="text-sm text-gray-500">
-                {budgetData[0] && formatCurrency(budgetData[0].total_amount)}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <TrendingUp className="h-8 w-8 text-purple-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Section */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Budget Distribution</h2>
-          
-          {/* Chart Type Toggle */}
-          <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setChartType('pie')}
-              className={`flex items-center space-x-1 px-3 py-1.5 rounded-md transition-all ${
-                chartType === 'pie'
-                  ? 'bg-white text-primary-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <PieChartIcon className="h-4 w-4" />
-              <span className="text-sm font-medium">Pie</span>
-            </button>
-            <button
-              onClick={() => setChartType('bar')}
-              className={`flex items-center space-x-1 px-3 py-1.5 rounded-md transition-all ${
-                chartType === 'bar'
-                  ? 'bg-white text-primary-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span className="text-sm font-medium">Bar</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Chart */}
-        <div className="h-[400px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            {chartType === 'pie' ? (
-              <PieChart>
-                <Pie
-                  data={budgetData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ category, percentage }) => `${category} (${percentage}%)`}
-                  outerRadius={120}
-                  fill="#8884d8"
-                  dataKey="total_amount"
-                  nameKey="category"
-                >
-                  {budgetData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={COLORS[index % COLORS.length]} 
-                    />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-              </PieChart>
-            ) : (
-              <BarChart
-                data={budgetData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="flex space-x-8 overflow-x-auto">
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="category" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  interval={0}
-                />
-                <YAxis 
-                  tickFormatter={(value) => formatMillions(value)}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="total_amount" name="Budget Amount">
-                  {budgetData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={COLORS[index % COLORS.length]} 
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+                <Icon className="h-4 w-4" />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'summary' && (
+        <SummaryTab 
+          totals={totals}
+          incomeData={incomeData}
+          expenseData={expenseData}
+          chartType={chartType}
+          setChartType={setChartType}
+          formatCurrency={formatCurrency}
+          formatMillions={formatMillions}
+          CustomTooltip={CustomTooltip}
+          COLORS={COLORS}
+        />
+      )}
+
+      {activeTab === 'income' && (
+        <IncomeTab 
+          data={filterAndSortData(incomeData, 'name', 'amount')}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatCurrency={formatCurrency}
+          exportToCSV={exportToCSV}
+          selectedYear={selectedYear}
+        />
+      )}
+
+      {activeTab === 'expenses' && (
+        <ExpensesTab 
+          data={filterAndSortData(expenseData, 'function_name', 'amount')}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatCurrency={formatCurrency}
+          exportToCSV={exportToCSV}
+          selectedYear={selectedYear}
+          FUNCTION_COLORS={FUNCTION_COLORS}
+        />
+      )}
+
+      {activeTab === 'indicators' && (
+        <IndicatorsTab 
+          data={filterAndSortData(indicatorData, 'department_name', 'amount_approved')}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatCurrency={formatCurrency}
+          formatPercent={formatPercent}
+          exportToCSV={exportToCSV}
+          selectedYear={selectedYear}
+        />
+      )}
+
+      {activeTab === 'loans' && (
+        <LoansTab 
+          data={filterAndSortData(loanData, 'creditor', 'original_amount')}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatCurrency={formatCurrency}
+          formatPercent={formatPercent}
+          exportToCSV={exportToCSV}
+          selectedYear={selectedYear}
+        />
+      )}
+
+      {activeTab === 'villages' && (
+        <VillagesTab 
+          data={filterAndSortData(villageData, 'name', 'total_amount')}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatCurrency={formatCurrency}
+          exportToCSV={exportToCSV}
+          selectedYear={selectedYear}
+        />
+      )}
+
+      {activeTab === 'forecasts' && (
+        <ForecastsTab 
+          data={filterAndSortData(forecastData, 'name', 'amount_2025')}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortConfig={sortConfig}
+          handleSort={handleSort}
+          formatCurrency={formatCurrency}
+          exportToCSV={exportToCSV}
+        />
+      )}
+
+      {activeTab === 'documents' && (
+        <DocumentsTab 
+          data={documentData}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          formatCurrency={formatCurrency}
+          selectedYear={selectedYear}
+        />
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// SUMMARY TAB COMPONENT
+// ==========================================
+function SummaryTab({ totals, incomeData, expenseData, chartType, setChartType, formatCurrency, formatMillions, CustomTooltip, COLORS }) {
+  // Prepare chart data
+  const incomeChartData = useMemo(() => {
+    const grouped = {}
+    incomeData.forEach(item => {
+      const code = item.code?.substring(0, 2) || '00'
+      grouped[code] = (grouped[code] || 0) + parseFloat(item.amount || 0)
+    })
+    return Object.entries(grouped)
+      .map(([code, value]) => ({ 
+        name: getIncomeCategoryName(code), 
+        value,
+        code
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [incomeData])
+
+  const expenseChartData = useMemo(() => {
+    const grouped = {}
+    expenseData.forEach(item => {
+      const code = item.function_code || '00'
+      grouped[code] = (grouped[code] || 0) + parseFloat(item.amount || 0)
+    })
+    return Object.entries(grouped)
+      .map(([code, value]) => ({ 
+        name: getExpenseFunctionName(code), 
+        value,
+        code
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [expenseData])
+
+  const balanceColor = totals.balance >= 0 ? 'text-green-600' : 'text-red-600'
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-700">Total Income</p>
+              <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(totals.income)}</p>
+              <p className="text-sm text-blue-600 mt-1">{incomeData.length} items</p>
+            </div>
+            <div className="p-3 bg-blue-200 rounded-lg">
+              <ArrowUpDown className="h-6 w-6 text-blue-700" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-red-700">Total Expenses</p>
+              <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(totals.expenses)}</p>
+              <p className="text-sm text-red-600 mt-1">{expenseData.length} items</p>
+            </div>
+            <div className="p-3 bg-red-200 rounded-lg">
+              <TrendingDown className="h-6 w-6 text-red-700" />
+            </div>
+          </div>
+        </div>
+
+        <div className={`bg-gradient-to-br rounded-xl p-6 border ${totals.balance >= 0 ? 'from-green-50 to-green-100 border-green-200' : 'from-orange-50 to-orange-100 border-orange-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm font-medium ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`}>Budget Balance</p>
+              <p className={`text-2xl font-bold mt-1 ${balanceColor}`}>{formatCurrency(totals.balance)}</p>
+              <p className={`text-sm mt-1 ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                {totals.balance >= 0 ? 'Surplus' : 'Deficit'}
+              </p>
+            </div>
+            <div className={`p-3 rounded-lg ${totals.balance >= 0 ? 'bg-green-200' : 'bg-orange-200'}`}>
+              {totals.balance >= 0 ? (
+                <TrendingUp className={`h-6 w-6 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
+              ) : (
+                <TrendingDown className={`h-6 w-6 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-purple-700">Active Loans</p>
+              <p className="text-2xl font-bold text-purple-900 mt-1">{formatCurrency(totals.loans)}</p>
+              <p className="text-sm text-purple-600 mt-1">Total debt</p>
+            </div>
+            <div className="p-3 bg-purple-200 rounded-lg">
+              <CreditCard className="h-6 w-6 text-purple-700" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Budget Table */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Budget Details</h2>
-          <button className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 font-medium">
-            <Download className="h-4 w-4" />
-            <span>Export CSV</span>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Income Chart */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Income Distribution</h3>
+            <span className="text-sm text-gray-500">{formatMillions(totals.income)} BGN</span>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === 'pie' ? (
+                <PieChart>
+                  <Pie
+                    data={incomeChartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {incomeChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                </PieChart>
+              ) : (
+                <BarChart data={incomeChartData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(v) => formatMillions(v)} />
+                  <YAxis type="category" dataKey="name" width={100} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" name="Amount">
+                    {incomeChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Expense Chart */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Expenses by Function</h3>
+            <span className="text-sm text-gray-500">{formatMillions(totals.expenses)} BGN</span>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === 'pie' ? (
+                <PieChart>
+                  <Pie
+                    data={expenseChartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {expenseChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                </PieChart>
+              ) : (
+                <BarChart data={expenseChartData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(v) => formatMillions(v)} />
+                  <YAxis type="category" dataKey="name" width={100} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" name="Amount">
+                    {expenseChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart Type Toggle */}
+      <div className="flex justify-center">
+        <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setChartType('pie')}
+            className={`flex items-center space-x-1 px-4 py-2 rounded-md transition-all ${
+              chartType === 'pie'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <PieChartIcon className="h-4 w-4" />
+            <span className="text-sm font-medium">Pie Chart</span>
+          </button>
+          <button
+            onClick={() => setChartType('bar')}
+            className={`flex items-center space-x-1 px-4 py-2 rounded-md transition-all ${
+              chartType === 'bar'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span className="text-sm font-medium">Bar Chart</span>
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
 
+// ==========================================
+// INCOME TAB COMPONENT
+// ==========================================
+function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV, selectedYear }) {
+  const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search income items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-600">{data.length} items</span>
+          <span className="text-sm text-gray-600">•</span>
+          <span className="text-sm font-medium text-gray-900">{formatCurrency(totalAmount)}</span>
+          <button
+            onClick={() => exportToCSV(data, 'income')}
+            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">
-                  Category
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">
+                  <button 
+                    onClick={() => handleSort('code')}
+                    className="flex items-center space-x-1"
+                  >
+                    <span>Code</span>
+                    {sortConfig.key === 'code' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                    )}
+                  </button>
                 </th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">
-                  Amount
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">
+                  <button 
+                    onClick={() => handleSort('name')}
+                    className="flex items-center space-x-1"
+                  >
+                    <span>Name</span>
+                    {sortConfig.key === 'name' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                    )}
+                  </button>
                 </th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">
-                  Percentage
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">
+                  <button 
+                    onClick={() => handleSort('amount')}
+                    className="flex items-center space-x-1 ml-auto"
+                  >
+                    <span>Amount</span>
+                    {sortConfig.key === 'amount' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                    )}
+                  </button>
                 </th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">
-                  Items
-                </th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">% of Total</th>
               </tr>
             </thead>
-            <tbody>
-              {budgetData.map((item, index) => (
-                <tr 
-                  key={item.category} 
-                  className="border-b border-gray-100 hover:bg-gray-50"
-                >
+            <tbody className="divide-y divide-gray-100">
+              {data.map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
                   <td className="py-3 px-4">
-                    <div className="flex items-center">
-                      <div 
-                        className="w-4 h-4 rounded mr-3"
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      ></div>
-                      <span className="font-medium text-gray-900">
-                        {item.category}
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {item.code}
+                    </span>
                   </td>
-                  <td className="text-right py-3 px-4 font-medium text-gray-900">
-                    {formatCurrency(item.total_amount)}
+                  <td className="py-3 px-4 text-gray-900">{item.name}</td>
+                  <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    {formatCurrency(item.amount)}
                   </td>
-                  <td className="text-right py-3 px-4">
+                  <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end">
-                      <div className="w-24 bg-gray-200 rounded-full h-2 mr-3">
+                      <div className="w-20 bg-gray-200 rounded-full h-2 mr-2">
                         <div 
-                          className="h-2 rounded-full"
-                          style={{ 
-                            width: `${item.percentage}%`,
-                            backgroundColor: COLORS[index % COLORS.length]
-                          }}
+                          className="h-2 rounded-full bg-blue-500"
+                          style={{ width: `${totalAmount > 0 ? ((item.amount / totalAmount) * 100) : 0}%` }}
                         ></div>
                       </div>
                       <span className="text-sm text-gray-600">
-                        {item.percentage}%
+                        {totalAmount > 0 ? ((item.amount / totalAmount) * 100).toFixed(1) : 0}%
                       </span>
                     </div>
-                  </td>
-                  <td className="text-right py-3 px-4 text-gray-600">
-                    {item.item_count}
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr className="bg-gray-50 font-semibold">
-                <td className="py-3 px-4 text-gray-900">Total</td>
-                <td className="text-right py-3 px-4 text-gray-900">
-                  {formatCurrency(totalBudget)}
-                </td>
-                <td className="text-right py-3 px-4 text-gray-900">100%</td>
-                <td className="text-right py-3 px-4 text-gray-900">
-                  {budgetData.reduce((sum, item) => sum + parseInt(item.item_count), 0)}
-                </td>
+            <tfoot className="bg-gray-50 font-semibold">
+              <tr>
+                <td className="py-3 px-4 text-gray-900" colSpan={2}>Total</td>
+                <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totalAmount)}</td>
+                <td className="py-3 px-4 text-right text-gray-900">100%</td>
               </tr>
             </tfoot>
           </table>
         </div>
       </div>
 
-      {/* Raw Budget Items */}
-      {rawData.length > 0 && (
-        <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Individual Budget Items
-          </h2>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {rawData.map((item) => (
-              <div 
-                key={item.id}
-                className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span 
-                        className="w-3 h-3 rounded-full"
-                        style={{ 
-                          backgroundColor: COLORS[
-                            budgetData.findIndex(b => b.category === item.category) % COLORS.length
-                          ] 
-                        }}
-                      ></span>
-                      <span className="text-sm font-medium text-gray-600">
-                        {item.category}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-gray-900 mt-1">
-                      {item.description || 'No description'}
-                    </h3>
-                  </div>
-                  <span className="font-bold text-gray-900 ml-4">
-                    {formatCurrency(item.amount)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+      {data.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No income data found for {selectedYear}
         </div>
       )}
     </div>
   )
+}
+
+// ==========================================
+// EXPENSES TAB COMPONENT
+// ==========================================
+function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV, selectedYear, FUNCTION_COLORS }) {
+  const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
+
+  // Group by function
+  const groupedByFunction = useMemo(() => {
+    const grouped = {}
+    data.forEach(item => {
+      const funcCode = item.function_code || '00'
+      if (!grouped[funcCode]) {
+        grouped[funcCode] = {
+          code: funcCode,
+          name: item.function_name || getExpenseFunctionName(funcCode),
+          amount: 0,
+          items: []
+        }
+      }
+      grouped[funcCode].amount += parseFloat(item.amount || 0)
+      grouped[funcCode].items.push(item)
+    })
+    return Object.values(grouped).sort((a, b) => b.amount - a.amount)
+  }, [data])
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search expenses..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-600">{data.length} items</span>
+          <span className="text-sm text-gray-600">•</span>
+          <span className="text-sm font-medium text-gray-900">{formatCurrency(totalAmount)}</span>
+          <button
+            onClick={() => exportToCSV(data, 'expenses')}
+            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Function Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {groupedByFunction.slice(0, 6).map((func) => (
+          <div 
+            key={func.code}
+            className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span 
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
+                style={{ backgroundColor: FUNCTION_COLORS[func.code] || '#6b7280' }}
+              >
+                {func.code}
+              </span>
+              <span className="text-sm text-gray-500">
+                {func.items.length} items
+              </span>
+            </div>
+            <h4 className="font-semibold text-gray-900 mb-1">{func.name}</h4>
+            <p className="text-lg font-bold text-gray-900">{formatCurrency(func.amount)}</p>
+            <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="h-2 rounded-full"
+                style={{ 
+                  width: `${totalAmount > 0 ? ((func.amount / totalAmount) * 100) : 0}%`,
+                  backgroundColor: FUNCTION_COLORS[func.code] || '#6b7280'
+                }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {totalAmount > 0 ? ((func.amount / totalAmount) * 100).toFixed(1) : 0}% of total expenses
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Detailed Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Function</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Program</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Amount</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">% of Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.slice(0, 50).map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span 
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
+                      style={{ backgroundColor: FUNCTION_COLORS[item.function_code] || '#6b7280' }}
+                    >
+                      {item.function_code}
+                    </span>
+                    <span className="ml-2 text-sm text-gray-600">{item.function_name}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-sm font-medium text-gray-900">{item.program_name}</span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    {formatCurrency(item.amount)}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <span className="text-sm text-gray-600">
+                      {totalAmount > 0 ? ((item.amount / totalAmount) * 100).toFixed(1) : 0}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {data.length > 50 && (
+          <div className="px-4 py-3 bg-gray-50 text-sm text-gray-600 text-center">
+            Showing 50 of {data.length} items. Use search to filter.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ==========================================
+// INDICATORS TAB COMPONENT
+// ==========================================
+function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, formatPercent, exportToCSV, selectedYear }) {
+  const totalApproved = data.reduce((sum, item) => sum + parseFloat(item.amount_approved || 0), 0)
+  const totalExecuted = data.reduce((sum, item) => sum + parseFloat(item.amount_executed || 0), 0)
+
+  // Group by indicator code
+  const groupedByIndicator = useMemo(() => {
+    const grouped = {}
+    data.forEach(item => {
+      const code = item.indicator_code || 'unknown'
+      if (!grouped[code]) {
+        grouped[code] = {
+          code,
+          name: item.indicator_name || getIndicatorName(code),
+          approved: 0,
+          executed: 0,
+          items: []
+        }
+      }
+      grouped[code].approved += parseFloat(item.amount_approved || 0)
+      grouped[code].executed += parseFloat(item.amount_executed || 0)
+      grouped[code].items.push(item)
+    })
+    return Object.values(grouped).sort((a, b) => b.approved - a.approved)
+  }, [data])
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search indicators..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="text-sm">
+            <span className="text-gray-600">Approved: </span>
+            <span className="font-medium text-gray-900">{formatCurrency(totalApproved)}</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-gray-600">Executed: </span>
+            <span className="font-medium text-green-600">{formatCurrency(totalExecuted)}</span>
+          </div>
+          <button
+            onClick={() => exportToCSV(data, 'indicators')}
+            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Indicator Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {groupedByIndicator.slice(0, 8).map((ind) => (
+          <div 
+            key={ind.code}
+            className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                {ind.code.toUpperCase()}
+              </span>
+              <span className="text-sm text-gray-500">{ind.items.length} items</span>
+            </div>
+            <h4 className="font-semibold text-gray-900 mb-1">{ind.name}</h4>
+            <p className="text-lg font-bold text-gray-900">{formatCurrency(ind.approved)}</p>
+            <div className="mt-2 flex items-center justify-between text-sm">
+              <span className="text-green-600">Executed: {formatCurrency(ind.executed)}</span>
+              <span className="text-gray-500">
+                {ind.approved > 0 ? ((ind.executed / ind.approved) * 100).toFixed(0) : 0}%
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Detailed Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Indicator</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Department</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Approved</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Executed</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">% Exec.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.slice(0, 50).map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      {item.indicator_code}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-900">{item.department_name}</td>
+                  <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    {formatCurrency(item.amount_approved)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-green-600">
+                    {formatCurrency(item.amount_executed)}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      (item.percentage_executed || 0) >= 80 ? 'bg-green-100 text-green-800' :
+                      (item.percentage_executed || 0) >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {formatPercent(item.percentage_executed)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ==========================================
+// LOANS TAB COMPONENT
+// ==========================================
+function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, formatPercent, exportToCSV, selectedYear }) {
+  const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
+
+  // Get unique loan types
+  const loanTypes = [...new Set(data.map(d => d.loan_type).filter(Boolean))]
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search loans..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-600">{data.length} loans</span>
+          <span className="text-sm text-gray-600">•</span>
+          <span className="text-sm font-medium text-gray-900">Total: {formatCurrency(totalAmount)}</span>
+          <button
+            onClick={() => exportToCSV(data, 'loans')}
+            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Loan Types Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {loanTypes.slice(0, 4).map((type) => {
+          const typeData = data.filter(d => d.loan_type === type)
+          const typeTotal = typeData.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
+          
+          return (
+            <div 
+              key={type}
+              className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm"
+            >
+              <h4 className="font-semibold text-gray-900 mb-1">{type}</h4>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(typeTotal)}</p>
+              <p className="text-sm text-gray-500 mt-1">{typeData.length} loans</p>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Loans Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Type</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Creditor</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Original Amount</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Remaining</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Interest Rate</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Term</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                      {item.loan_type}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-900">{item.creditor}</td>
+                  <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    {formatCurrency(item.original_amount)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-gray-600">
+                    {formatCurrency(item.remaining_amount)}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {item.interest_rate ? formatPercent(item.interest_rate) : 'N/A'}
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    {item.term_months ? `${item.term_months} months` : 'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {data.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No loan data found for {selectedYear}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// VILLAGES TAB COMPONENT
+// ==========================================
+function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV, selectedYear }) {
+  const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.total_amount || 0), 0)
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search villages..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-600">{data.length} villages</span>
+          <span className="text-sm text-gray-600">•</span>
+          <span className="text-sm font-medium text-gray-900">{formatCurrency(totalAmount)}</span>
+          <button
+            onClick={() => exportToCSV(data, 'villages')}
+            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Village Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {data.slice(0, 6).map((village) => (
+          <div 
+            key={village.id || village.code}
+            className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                {village.code}
+              </span>
+            </div>
+            <h4 className="font-semibold text-gray-900 mb-1">{village.name}</h4>
+            <p className="text-lg font-bold text-gray-900">{formatCurrency(village.total_amount)}</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-gray-500">State:</span>
+                <span className="ml-1 font-medium text-gray-700">{formatCurrency(village.state_personnel + village.state_maintenance)}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Local:</span>
+                <span className="ml-1 font-medium text-gray-700">{formatCurrency(village.local_total)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Detailed Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Code</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Village Name</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">State Funding</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Local Budget</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      {item.code}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-900">{item.name}</td>
+                  <td className="py-3 px-4 text-right text-gray-600">
+                    {formatCurrency(item.state_personnel + item.state_maintenance)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-gray-600">
+                    {formatCurrency(item.local_total)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    {formatCurrency(item.total_amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-50 font-semibold">
+              <tr>
+                <td className="py-3 px-4" colSpan={4}>Total</td>
+                <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totalAmount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {data.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No village data found for {selectedYear}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// FORECASTS TAB COMPONENT
+// ==========================================
+function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV }) {
+  const total2024 = data.reduce((sum, item) => sum + parseFloat(item.amount_2024 || 0), 0)
+  const total2025 = data.reduce((sum, item) => sum + parseFloat(item.amount_2025 || 0), 0)
+  const total2026 = data.reduce((sum, item) => sum + parseFloat(item.amount_2026 || 0), 0)
+  const total2027 = data.reduce((sum, item) => sum + parseFloat(item.amount_2027 || 0), 0)
+  const total2028 = data.reduce((sum, item) => sum + parseFloat(item.amount_2028 || 0), 0)
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search forecasts..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-600">{data.length} items</span>
+          <button
+            onClick={() => exportToCSV(data, 'forecasts')}
+            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Forecast Year Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+          <p className="text-sm text-gray-500">2024 (Actual)</p>
+          <p className="text-xl font-bold text-gray-900">{formatCurrency(total2024)}</p>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+          <p className="text-sm text-blue-600">2025 (Plan)</p>
+          <p className="text-xl font-bold text-blue-900">{formatCurrency(total2025)}</p>
+        </div>
+        <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+          <p className="text-sm text-purple-600">2026 (Forecast)</p>
+          <p className="text-xl font-bold text-purple-900">{formatCurrency(total2026)}</p>
+        </div>
+        <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+          <p className="text-sm text-orange-600">2027 (Forecast)</p>
+          <p className="text-xl font-bold text-orange-900">{formatCurrency(total2027)}</p>
+        </div>
+        <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+          <p className="text-sm text-green-600">2028 (Forecast)</p>
+          <p className="text-xl font-bold text-green-900">{formatCurrency(total2028)}</p>
+        </div>
+      </div>
+
+      {/* Forecast Chart */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Budget Forecast Trend</h3>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={[
+              { year: '2024', amount: total2024 },
+              { year: '2025', amount: total2025 },
+              { year: '2026', amount: total2026 },
+              { year: '2027', amount: total2027 },
+              { year: '2028', amount: total2028 },
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={(v) => formatMillions(v)} />
+              <Tooltip content={<CustomTooltip />} />
+              <Line type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} dot={{fill: '#3b82f6'}} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Detailed Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Code</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Item Name</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">2024</th>
+                <th className="text-right py-3 px-4 font-semibold text-blue-900 text-sm">2025</th>
+                <th className="text-right py-3 px-4 font-semibold text-purple-900 text-sm">2026</th>
+                <th className="text-right py-3 px-4 font-semibold text-orange-900 text-sm">2027</th>
+                <th className="text-right py-3 px-4 font-semibold text-green-900 text-sm">2028</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.slice(0, 50).map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      {item.code}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-900">{item.name}</td>
+                  <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(item.amount_2024)}</td>
+                  <td className="py-3 px-4 text-right font-medium text-blue-900">{formatCurrency(item.amount_2025)}</td>
+                  <td className="py-3 px-4 text-right text-purple-900">{formatCurrency(item.amount_2026)}</td>
+                  <td className="py-3 px-4 text-right text-orange-900">{formatCurrency(item.amount_2027)}</td>
+                  <td className="py-3 px-4 text-right text-green-900">{formatCurrency(item.amount_2028)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {data.length > 50 && (
+          <div className="px-4 py-3 bg-gray-50 text-sm text-gray-600 text-center">
+            Showing 50 of {data.length} items. Use search to filter.
+          </div>
+        )}
+      </div>
+
+      {data.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No forecast data found
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// DOCUMENTS TAB COMPONENT
+// ==========================================
+function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selectedYear }) {
+  const filteredDocs = useMemo(() => {
+    if (!searchTerm) return data
+    return data.filter(doc => 
+      doc.original_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.document_type?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [data, searchTerm])
+
+  const getDocumentIcon = (type) => {
+    switch (type) {
+      case 'income': return ArrowUpDown
+      case 'expense': return Building
+      case 'indicator': return BarChart3
+      case 'loan': return CreditCard
+      case 'village': return MapPin
+      case 'forecast': return TrendIcon
+      default: return FileText
+    }
+  }
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'parsed': return 'bg-green-100 text-green-800'
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'error': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search documents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+        <div className="text-sm text-gray-600">
+          {filteredDocs.length} documents
+        </div>
+      </div>
+
+      {/* Documents Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredDocs.map((doc) => {
+          const Icon = getDocumentIcon(doc.document_type)
+          return (
+            <div 
+              key={doc.id}
+              className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="p-2 bg-gray-100 rounded-lg">
+                  <Icon className="h-5 w-5 text-gray-600" />
+                </div>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusBadge(doc.status)}`}>
+                  {doc.status}
+                </span>
+              </div>
+              <h4 className="font-semibold text-gray-900 mb-1 truncate" title={doc.original_name}>
+                {doc.original_name}
+              </h4>
+              <div className="space-y-1 text-sm text-gray-500">
+                <div className="flex items-center justify-between">
+                  <span>Year:</span>
+                  <span className="font-medium text-gray-700">{doc.year}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Type:</span>
+                  <span className="font-medium text-gray-700">{doc.document_type}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Subtype:</span>
+                  <span className="font-medium text-gray-700">{doc.document_subtype || 'N/A'}</span>
+                </div>
+                {doc.file_size && (
+                  <div className="flex items-center justify-between">
+                    <span>Size:</span>
+                    <span className="font-medium text-gray-700">{(doc.file_size / 1024).toFixed(1)} KB</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {filteredDocs.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          {searchTerm ? 'No documents match your search' : `No documents found for ${selectedYear}`}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+function getIncomeCategoryName(code) {
+  const names = {
+    '00': 'Total',
+    '01': 'Tax Revenue',
+    '02': 'Non-Tax Revenue',
+    '03': 'Grants',
+    '04': 'Transfers',
+    '05': 'Other Revenue',
+    '08': 'Loans',
+    '11': 'Capital Revenue'
+  }
+  return names[code] || `Category ${code}`
+}
+
+function getExpenseFunctionName(code) {
+  const names = {
+    '00': 'Total',
+    '01': 'General Government',
+    '02': 'Defense',
+    '03': 'Public Order',
+    '04': 'Education',
+    '05': 'Health',
+    '06': 'Social Welfare',
+    '07': 'Housing',
+    '08': 'Culture',
+    '09': 'Religion',
+    '10': 'Agriculture',
+    '11': 'Industry',
+    '12': 'Transport',
+    '13': 'Communications',
+    '14': 'Other Economics',
+    '15': 'Environmental',
+    '16': 'R&D'
+  }
+  return names[code] || `Function ${code}`
+}
+
+function getIndicatorName(code) {
+  const names = {
+    'd122': 'Administrative Services',
+    'd332': 'Social Services',
+    'd369': 'Education',
+    'd431': 'Healthcare',
+    'd529': 'Sports',
+    'd532': 'Healthcare Services',
+    'd538': 'Cultural Activities',
+    'd540': 'Youth Programs',
+    'd604': 'Transport',
+    'd619': 'Municipal Services',
+    'd621': 'Environment',
+    'd714': 'Energy',
+    'd746': 'Water Supply',
+    'd752': 'Waste Management',
+    'd759': 'Public Works',
+    'd849': 'Economic Development',
+    'd898': 'Infrastructure'
+  }
+  return names[code] || `Indicator ${code}`
 }
 
 export default BudgetPage

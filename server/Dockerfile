@@ -1,6 +1,9 @@
 # Open Zagora Server Dockerfile
 
-FROM node:18-alpine
+FROM node:20-alpine
+
+# Install poppler-utils for pdftotext
+RUN apk add --no-cache poppler-utils
 
 # Set working directory
 WORKDIR /app

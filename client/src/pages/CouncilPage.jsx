@@ -31,8 +31,8 @@ import {
   FileText
 } from 'lucide-react'
 
-// API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+// API base URL - use relative path to work with Vite proxy in both localhost and network access
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function CouncilPage() {
   const [votes, setVotes] = useState([])

@@ -1,0 +1,59 @@
+{
+  "filename": "Pr 17 indik razcheti-2025-d532.pdf",
+  "year": 2025,
+  "type": "income",
+  "itemsFound": 5,
+  "items": [
+    {
+      "code": "21-20",
+      "name": "Код 21-20",
+      "amount": 2027,
+      "sourceAmounts": [
+        2021,
+        2027
+      ]
+    },
+    {
+      "code": "63-00",
+      "name": "Други ЕС трансфери",
+      "amount": 3723537235,
+      "sourceAmounts": [
+        37235,
+        37235,
+        3723537235
+      ]
+    },
+    {
+      "code": "76-00",
+      "name": "Заеми за ЕС",
+      "amount": 11326,
+      "sourceAmounts": [
+        11326
+      ]
+    },
+    {
+      "code": "02-00",
+      "name": "Данъци върху печалбата",
+      "amount": 2165121651,
+      "sourceAmounts": [
+        21651,
+        21651,
+        2165121651
+      ]
+    },
+    {
+      "code": "05-00",
+      "name": "Акцизи",
+      "amount": 42584258,
+      "sourceAmounts": [
+        4258,
+        4258,
+        42584258
+      ]
+    }
+  ],
+  "totalTextItems": 124,
+  "rowCount": 55,
+  "pageCount": 1,
+  "parsedAt": "2026-02-28T16:40:17.122Z"
+}

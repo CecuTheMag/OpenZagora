@@ -484,6 +484,307 @@ router.get('/history', async (req, res) => {
 
 // ==========================================
 // ==========================================
+// POST /api/admin/upload/folder
+// Upload and parse a folder of PDF files (Admin only)
+// Accepts a folder path on the server or a zip file
+// ==========================================
+router.post('/folder', async (req, res) => {
+  let auditLogId = null;
+  
+  try {
+    const { folderPath, year } = req.body;
+    
+    if (!folderPath) {
+      return res.status(400).json({ 
+        error: 'No folder path provided',
+        message: 'Please provide a folder path containing PDF files'
+      });
+    }
+
+    console.log(`📁 [ADMIN] Processing folder: ${folderPath} for year ${year} by ${req.user.username}`);
+
+    // Resolve the folder path
+    const fullPath = path.isAbsolute(folderPath) ? folderPath : path.join(__dirname, '..', folderPath);
+    
+    // Check if path exists
+    const stats = await fs.stat(fullPath);
+    if (!stats.isDirectory()) {
+      return res.status(400).json({
+        error: 'Invalid folder path',
+        message: 'The provided path is not a directory'
+      });
+    }
+
+    // Read all files in the directory
+    const files = await fs.readdir(fullPath);
+    const pdfFiles = files.filter(f => f.toLowerCase().endsWith('.pdf'));
+    
+    if (pdfFiles.length === 0) {
+      return res.status(400).json({
+        error: 'No PDF files found',
+        message: 'The folder does not contain any PDF files'
+      });
+    }
+
+    console.log(`📁 [ADMIN] Found ${pdfFiles.length} PDF files in folder`);
+
+    // Log upload attempt
+    auditLogId = await logAuditEvent({
+      adminUserId: req.user.id,
+      action: 'folder_upload_attempt',
+      resourceType: 'pdf_folder',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: {
+        folderPath: folderPath,
+        fullPath: fullPath,
+        year: year,
+        fileCount: pdfFiles.length,
+        files: pdfFiles
+      },
+      success: true
+    });
+
+    // Process each PDF file
+    const results = [];
+    const errors = [];
+    
+    // Sort PDFs to process in order (pr1, pr2, pr3, etc.)
+    pdfFiles.sort();
+    
+    for (const pdfFile of pdfFiles) {
+      try {
+        const filePath = path.join(fullPath, pdfFile);
+        console.log(`📄 [ADMIN] Processing: ${pdfFile}`);
+        
+        // Read and parse PDF
+        const pdfBuffer = await fs.readFile(filePath);
+        const pdfData = await pdfParse(pdfBuffer);
+        const rawText = pdfData.text;
+        
+        // Classify document
+        const classifier = new DocumentClassifier();
+        const classification = classifier.classify(pdfFile);
+        
+        // Use provided year if not detected
+        const fileYear = classification.year || parseInt(year) || new Date().getFullYear();
+        
+        // Parse document with appropriate parser
+        const parsedResult = parseDocument(rawText, { ...classification, year: fileYear });
+        
+        // Store document metadata
+        const docResult = await storeDocumentMetadata({
+          filename: pdfFile,
+          originalName: pdfFile,
+          year: fileYear,
+          documentType: classification.type,
+          documentSubtype: classification.subtype,
+          category: classification.description,
+          uploadedBy: req.user.username,
+          fileSize: pdfBuffer.length,
+          pageCount: pdfData.numpages,
+          rawText: rawText,
+          parsedData: parsedResult,
+          status: parsedResult.success ? 'parsed' : 'error'
+        });
+
+        const documentId = docResult.id;
+
+        // Store parsed data in appropriate tables
+        let storedItems = 0;
+        if (parsedResult.items && parsedResult.items.length > 0) {
+          const statements = getInsertStatements(parsedResult, documentId);
+          
+          for (const stmt of statements) {
+            try {
+              await mainPool.query(stmt.query, stmt.params);
+              storedItems++;
+            } catch (err) {
+              console.error(`Error storing item from ${pdfFile}:`, err.message);
+            }
+          }
+        }
+
+        results.push({
+          file: pdfFile,
+          success: true,
+          documentId: documentId,
+          classification: classification,
+          year: fileYear,
+          itemsStored: storedItems,
+          pages: pdfData.numpages
+        });
+        
+        console.log(`✅ [ADMIN] Processed: ${pdfFile} (${classification.type}, ${storedItems} items)`);
+        
+      } catch (fileError) {
+        console.error(`❌ [ADMIN] Error processing ${pdfFile}:`, fileError.message);
+        errors.push({
+          file: pdfFile,
+          error: fileError.message
+        });
+      }
+    }
+
+    // Calculate summary
+    const incomeCount = results.filter(r => r.classification?.type === 'income').length;
+    const expenseCount = results.filter(r => r.classification?.type === 'expense').length;
+    const indicatorCount = results.filter(r => r.classification?.type === 'indicator').length;
+    const loanCount = results.filter(r => r.classification?.type === 'loan').length;
+    const totalItemsStored = results.reduce((sum, r) => sum + r.itemsStored, 0);
+
+    // Update audit log with success
+    await logAuditEvent({
+      adminUserId: req.user.id,
+      action: 'folder_upload_success',
+      resourceType: 'pdf_folder',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: {
+        folderPath: folderPath,
+        year: year,
+        totalFiles: pdfFiles.length,
+        processedSuccessfully: results.length,
+        failedFiles: errors.length,
+        incomeDocuments: incomeCount,
+        expenseDocuments: expenseCount,
+        indicatorDocuments: indicatorCount,
+        loanDocuments: loanCount,
+        totalItemsStored: totalItemsStored,
+        results: results.map(r => ({ file: r.file, type: r.classification?.type, items: r.itemsStored })),
+        errors: errors
+      },
+      success: true
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Folder processed successfully. ${results.length} files processed, ${totalItemsStored} items stored.`,
+      data: {
+        folderPath: folderPath,
+        year: year,
+        totalFiles: pdfFiles.length,
+        processedSuccessfully: results.length,
+        failedFiles: errors.length,
+        summary: {
+          income: incomeCount,
+          expenses: expenseCount,
+          indicators: indicatorCount,
+          loans: loanCount,
+          totalItems: totalItemsStored
+        },
+        results: results,
+        errors: errors,
+        processedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [ADMIN] Error processing folder:', error);
+    
+    // Log failure
+    await logAuditEvent({
+      adminUserId: req.user.id,
+      action: 'folder_upload_failed',
+      resourceType: 'pdf_folder',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: {
+        folderPath: req.body.folderPath,
+        year: req.body.year,
+        error: error.message
+      },
+      success: false,
+      errorMessage: error.message
+    });
+
+    res.status(500).json({
+      error: 'Failed to process folder',
+      message: error.message
+    });
+  }
+});
+
+// ==========================================
+// POST /api/admin/upload/zip
+// Upload and parse a zip file containing PDF files (Admin only)
+// ==========================================
+router.post('/zip', upload.single('zip'), async (req, res) => {
+  let auditLogId = null;
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: 'No zip file provided',
+        message: 'Please select a zip file containing PDF files'
+      });
+    }
+
+    const { year } = req.body;
+    const { path: filePath, originalname, size } = req.file;
+
+    console.log(`📦 [ADMIN] Processing zip: ${originalname} for year ${year} by ${req.user.username}`);
+
+    // Extract zip file
+    const extractDir = path.join(__dirname, '..', 'uploads', 'extracted', path.basename(filePath, '.zip'));
+    await fs.mkdir(extractDir, { recursive: true });
+    
+    // Use node-stream-zip or Adm-zip (need to check if installed)
+    // For now, return a message that zip extraction needs to be implemented
+    // This is a placeholder - actual implementation would use a zip library
+    
+    // Log upload attempt
+    await logAuditEvent({
+      adminUserId: req.user.id,
+      action: 'zip_upload_attempt',
+      resourceType: 'pdf_zip',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: {
+        originalName: originalname,
+        fileName: req.file.filename,
+        year: year,
+        fileSize: size
+      },
+      success: true
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Zip file uploaded. Please use the /folder endpoint with the extracted path.',
+      data: {
+        uploadedZip: originalname,
+        extractTo: extractDir,
+        nextStep: 'Use POST /api/admin/upload/folder with folderPath = ' + extractDir,
+        note: 'Zip extraction needs to be implemented. Please extract manually and use folder upload.'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [ADMIN] Error processing zip:', error);
+    
+    await logAuditEvent({
+      adminUserId: req.user.id,
+      action: 'zip_upload_failed',
+      resourceType: 'pdf_zip',
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: {
+        fileName: req.file?.originalname,
+        error: error.message
+      },
+      success: false,
+      errorMessage: error.message
+    });
+
+    res.status(500).json({
+      error: 'Failed to process zip file',
+      message: error.message
+    });
+  }
+});
+
+// ==========================================
 // GET /api/admin/upload/status
 // Check upload endpoint status
 // ==========================================

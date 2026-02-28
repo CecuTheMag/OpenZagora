@@ -168,3 +168,47 @@ CREATE TRIGGER trg_update_summary_income
     EXECUTE FUNCTION update_budget_summary();
 
 -- Similar triggers for expenses and loans would be added here
+
+-- ==========================================
+-- BUDGET VILLAGES (pr54 - Кметства)
+-- Village budgets data
+-- ==========================================
+CREATE TABLE IF NOT EXISTS budget_villages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID REFERENCES budget_documents(id) ON DELETE CASCADE,
+    year INTEGER NOT NULL,
+    code VARCHAR(10), -- Village code
+    name VARCHAR(255), -- Village name
+    state_personnel DECIMAL(15, 2) DEFAULT 0, -- State funded personnel
+    state_maintenance DECIMAL(15, 2) DEFAULT 0, -- State funded maintenance
+    local_total DECIMAL(15, 2) DEFAULT 0, -- Local budget total
+    total_amount DECIMAL(15, 2) DEFAULT 0, -- Grand total
+    notes TEXT,
+    row_order INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- BUDGET FORECASTS (Прогнози)
+-- Multi-year budget forecasts
+-- ==========================================
+CREATE TABLE IF NOT EXISTS budget_forecasts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID REFERENCES budget_documents(id) ON DELETE CASCADE,
+    code VARCHAR(20), -- Budget code
+    name VARCHAR(500), -- Item name/description
+    amount_2024 DECIMAL(15, 2) DEFAULT 0, -- 2024 actual
+    amount_2025 DECIMAL(15, 2) DEFAULT 0, -- 2025 plan
+    amount_2026 DECIMAL(15, 2) DEFAULT 0, -- 2026 forecast
+    amount_2027 DECIMAL(15, 2) DEFAULT 0, -- 2027 forecast
+    amount_2028 DECIMAL(15, 2) DEFAULT 0, -- 2028 forecast
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- INDEXES FOR VILLAGES AND FORECASTS
+-- ==========================================
+CREATE INDEX IF NOT EXISTS idx_budget_villages_year ON budget_villages(year);
+CREATE INDEX IF NOT EXISTS idx_budget_villages_code ON budget_villages(code);
+CREATE INDEX IF NOT EXISTS idx_budget_forecasts_code ON budget_forecasts(code);

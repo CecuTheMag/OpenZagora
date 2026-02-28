@@ -186,27 +186,65 @@ router.get('/summary', async (req, res) => {
     // With year - return category breakdown for BudgetPage
     const yearInt = parseInt(year);
 
+    // Income name mapping
+    const INCOME_NAMES = {
+      '01': 'Данъци върху доходите',
+      '02': 'Данъци върху печалбата',
+      '03': 'Имуществени данъци',
+      '04': 'ДДС',
+      '05': 'Акцизи',
+      '06': 'Други данъци',
+      '08': 'Приходи от собственост',
+      '09': 'Административни услуги',
+      '10': 'Глоби и санкции',
+      '11': 'Приходи от концесии',
+      '12': 'Приходи от продажби',
+      '13': 'Приходи от приватизация',
+      '14': 'Приходи от лихви',
+      '15': 'Трансфери и помощи',
+      '17': 'Временни заеми',
+      '24': 'Други приходи',
+      '25': 'Приходи от глоби',
+      '28': 'Приходи от други санкции',
+      '31': 'Трансфери от държавния бюджет',
+      '36': 'Помощи от ЕС',
+      '45': 'Текущи помощи',
+      '46': 'Собствени приходи',
+      '61': 'Трансфери от бюджети',
+      '62': 'Трансфери от ЕС',
+      '63': 'Други ЕС трансфери',
+      '74': 'Заеми от ЦБ',
+      '75': 'Заеми от бюджети',
+      '76': 'Заеми за ЕС',
+      '77': 'Всичко заеми',
+      '88': 'Друго финансиране',
+      '93': 'Операции с активи',
+      '95': 'Депозити',
+    };
+
     // Get income data grouped by code (for categories)
     const incomeResult = await pool.query(`
       SELECT 
-        code as category,
+        code,
+        name,
         SUM(amount) as total_amount,
         COUNT(*) as item_count
       FROM budget_income
       WHERE year = $1
-      GROUP BY code
+      GROUP BY code, name
       ORDER BY total_amount DESC
     `, [yearInt]);
 
     // Get expense data grouped by function
     const expenseResult = await pool.query(`
       SELECT 
-        function_code as category,
+        function_code,
+        function_name,
         SUM(amount) as total_amount,
         COUNT(*) as item_count
       FROM budget_expenses
       WHERE year = $1
-      GROUP BY function_code
+      GROUP BY function_code, function_name
       ORDER BY total_amount DESC
     `, [yearInt]);
 
@@ -215,8 +253,11 @@ router.get('/summary', async (req, res) => {
     
     // Add income categories
     incomeResult.rows.forEach(row => {
+      const prefix = row.code.split('-')[0];
+      const name = row.name && row.name.trim() ? row.name : (INCOME_NAMES[prefix] || row.code);
       categories.push({
-        category: `Income ${row.category}`,
+        category: name,
+        code: row.code,
         total_amount: parseFloat(row.total_amount),
         item_count: parseInt(row.item_count),
         type: 'income'
@@ -225,8 +266,10 @@ router.get('/summary', async (req, res) => {
 
     // Add expense categories
     expenseResult.rows.forEach(row => {
+      const name = row.function_name && row.function_name.trim() ? row.function_name : `Функция ${row.function_code}`;
       categories.push({
-        category: `Expense ${row.category}`,
+        category: name,
+        code: row.function_code,
         total_amount: parseFloat(row.total_amount),
         item_count: parseInt(row.item_count),
         type: 'expense'
@@ -304,7 +347,7 @@ router.get('/income', async (req, res) => {
 // Get expense data for a year
 router.get('/expenses', async (req, res) => {
   try {
-    const { year } = req.query;
+    const { year, limit = 1000, offset = 0 } = req.query;
     
     if (!year) {
       return res.status(400).json({
@@ -313,27 +356,51 @@ router.get('/expenses', async (req, res) => {
       });
     }
 
+    const yearInt = parseInt(year);
+    const limitInt = Math.min(parseInt(limit), 1000);
+    const offsetInt = parseInt(offset);
+
     const result = await pool.query(`
       SELECT 
         id,
-        code,
-        name,
         function_code,
+        function_name,
         program_code,
+        program_name,
         amount,
+        amount_personnel,
+        amount_goods_services,
+        amount_subsidies,
+        amount_capital,
         document_id,
         created_at
       FROM budget_expenses
       WHERE year = $1
       ORDER BY amount DESC
-    `, [parseInt(year)]);
+      LIMIT $2 OFFSET $3
+    `, [yearInt, limitInt, offsetInt]);
+
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total FROM budget_expenses WHERE year = $1
+    `, [yearInt]);
 
     res.json({
       success: true,
       data: result.rows.map(row => ({
         ...row,
-        amount: parseFloat(row.amount)
-      }))
+        amount: parseFloat(row.amount || 0),
+        amount_personnel: parseFloat(row.amount_personnel || 0),
+        amount_goods_services: parseFloat(row.amount_goods_services || 0),
+        amount_subsidies: parseFloat(row.amount_subsidies || 0),
+        amount_capital: parseFloat(row.amount_capital || 0)
+      })),
+      pagination: {
+        year: yearInt,
+        limit: limitInt,
+        offset: offsetInt,
+        total: parseInt(countResult.rows[0].total),
+        hasMore: result.rows.length === limitInt
+      }
     });
 
   } catch (err) {
@@ -366,8 +433,15 @@ router.get('/indicators', async (req, res) => {
         department_code,
         department_name,
         indicator_name,
-        value,
-        unit,
+        budget_chapter,
+        amount_approved,
+        amount_executed,
+        amount_remaining,
+        percentage_executed,
+        
+        
+        
+        
         document_id,
         created_at
       FROM budget_indicators
@@ -380,13 +454,19 @@ router.get('/indicators', async (req, res) => {
       params.push(department);
     }
 
-    query += ` ORDER BY department_code, indicator_code`;
+    query += ` ORDER BY amount_approved DESC, department_code, indicator_code`;
 
     const result = await pool.query(query, params);
 
     res.json({
       success: true,
-      data: result.rows
+      data: result.rows.map(row => ({
+        ...row,
+        amount_approved: parseFloat(row.amount_approved || 0),
+        amount_executed: parseFloat(row.amount_executed || 0),
+        amount_remaining: parseFloat(row.amount_remaining || 0),
+        percentage_executed: parseFloat(row.percentage_executed || 0)
+      }))
     });
 
   } catch (err) {
@@ -416,24 +496,32 @@ router.get('/loans', async (req, res) => {
       SELECT 
         id,
         loan_type,
+        loan_code,
         creditor,
-        amount,
-        currency,
+        original_amount,
+        remaining_amount,
         interest_rate,
+        start_date,
+        end_date,
         term_months,
         purpose,
+        monthly_payment,
         document_id,
         created_at
       FROM budget_loans
       WHERE year = $1
-      ORDER BY amount DESC
+      ORDER BY original_amount DESC
     `, [parseInt(year)]);
 
     res.json({
       success: true,
       data: result.rows.map(row => ({
         ...row,
-        amount: parseFloat(row.amount)
+        original_amount: parseFloat(row.original_amount || 0),
+        remaining_amount: parseFloat(row.remaining_amount || 0),
+        interest_rate: parseFloat(row.interest_rate || 0),
+        monthly_payment: parseFloat(row.monthly_payment || 0),
+        term_months: row.term_months ? parseInt(row.term_months) : null
       }))
     });
 
@@ -462,9 +550,7 @@ router.get('/documents', async (req, res) => {
         year,
         file_size,
         page_count,
-        processed,
-        error_message,
-        created_at
+        uploaded_at
       FROM budget_documents
       WHERE 1=1
     `;
@@ -481,7 +567,7 @@ router.get('/documents', async (req, res) => {
       params.push(type);
     }
 
-    query += ` ORDER BY year DESC, created_at DESC LIMIT $${paramIndex++}`;
+    query += ` ORDER BY year DESC, uploaded_at DESC LIMIT $${paramIndex++}`;
     params.push(parseInt(limit));
 
     const result = await pool.query(query, params);
@@ -496,6 +582,98 @@ router.get('/documents', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch documents',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/villages
+// Get village budget data for a year
+router.get('/villages', async (req, res) => {
+  try {
+    const { year } = req.query;
+    
+    if (!year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Year parameter is required'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        id,
+        code,
+        name,
+        state_personnel,
+        state_maintenance,
+        local_total,
+        total_amount,
+        document_id,
+        created_at
+      FROM budget_villages
+      WHERE year = $1
+      ORDER BY total_amount DESC
+    `, [parseInt(year)]);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        ...row,
+        state_personnel: parseFloat(row.state_personnel || 0),
+        state_maintenance: parseFloat(row.state_maintenance || 0),
+        local_total: parseFloat(row.local_total || 0),
+        total_amount: parseFloat(row.total_amount || 0)
+      }))
+    });
+
+  } catch (err) {
+    console.error('Error fetching village data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch village data',
+      message: err.message
+    });
+  }
+});
+
+// GET /api/budget/forecasts
+// Get multi-year forecast data
+router.get('/forecasts', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        code,
+        name,
+        amount_2024,
+        amount_2025,
+        amount_2026,
+        amount_2027,
+        amount_2028,
+        document_id,
+        created_at
+      FROM budget_forecasts
+      ORDER BY amount_2025 DESC
+    `);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        ...row,
+        amount_2024: parseFloat(row.amount_2024 || 0),
+        amount_2025: parseFloat(row.amount_2025 || 0),
+        amount_2026: parseFloat(row.amount_2026 || 0),
+        amount_2027: parseFloat(row.amount_2027 || 0),
+        amount_2028: parseFloat(row.amount_2028 || 0)
+      }))
+    });
+
+  } catch (err) {
+    console.error('Error fetching forecast data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch forecast data',
       message: err.message
     });
   }

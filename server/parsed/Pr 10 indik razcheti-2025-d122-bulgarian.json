@@ -1,0 +1,42 @@
+{
+  "filename": "Pr 10 indik razcheti-2025-d122.pdf",
+  "year": 2025,
+  "type": "income",
+  "itemsFound": 3,
+  "items": [
+    {
+      "code": "62-00",
+      "name": "Трансфери от ЕС",
+      "amount": 23219572321957,
+      "sourceAmounts": [
+        2321957,
+        2321957,
+        23219572321957
+      ]
+    },
+    {
+      "code": "63-00",
+      "name": "Други ЕС трансфери",
+      "amount": 25087702508770,
+      "sourceAmounts": [
+        2508770,
+        2508770,
+        25087702508770
+      ]
+    },
+    {
+      "code": "76-00",
+      "name": "Заеми за ЕС",
+      "amount": 25087702508770,
+      "sourceAmounts": [
+        2508770,
+        2508770,
+        25087702508770
+      ]
+    }
+  ],
+  "totalTextItems": 127,
+  "rowCount": 56,
+  "pageCount": 1,
+  "parsedAt": "2026-02-28T16:40:17.014Z"
+}

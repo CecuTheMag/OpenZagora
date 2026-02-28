@@ -17,6 +17,7 @@ services:
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
       - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./server/db/budget_schema.sql:/docker-entrypoint-initdb.d/02-budget-schema.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -29,10 +30,10 @@ services:
 
   # Backend API Server (Development with hot reload)
   server:
-    image: node:18-alpine
+    image: node:20-alpine
     container_name: open-zagora-server-dev
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "apk add --no-cache poppler-utils && npm install && npm run dev"
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -61,7 +62,7 @@ services:
     image: node:18-alpine
     container_name: open-zagora-client-dev
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "apk add --no-cache poppler-utils && npm install && npm run dev"
     restart: unless-stopped
     environment:
       VITE_API_URL: http://localhost:5000/api
@@ -147,7 +148,7 @@ services:
     image: node:20-alpine
     container_name: open-zagora-admin-client-dev
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "apk add --no-cache poppler-utils && npm install && npm run dev"
     restart: unless-stopped
     environment:
       VITE_API_URL: http://localhost:5001

@@ -19,8 +19,8 @@ import {
   CheckCircle
 } from 'lucide-react'
 
-// API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+// API base URL - use relative path to work with Vite proxy
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function Home() {
   const [stats, setStats] = useState({
