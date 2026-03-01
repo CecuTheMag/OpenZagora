@@ -80,19 +80,10 @@ CREATE TRIGGER update_admin_users_updated_at
 
 -- ==========================================
 -- DEFAULT ADMIN USER
--- Username: admin
--- Password: admin123 (CHANGE IN PRODUCTION!)
+-- Credentials from environment variables
 -- ==========================================
--- Password hash generated with bcrypt (12 rounds): admin123
-INSERT INTO admin_users (username, email, password_hash, role, is_active)
-VALUES (
-    'admin',
-    'admin@openzagora.local',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYA.qGZvKG6G',
-    'super_admin',
-    true
-)
-ON CONFLICT (username) DO NOTHING;
+-- Note: Password hash must be generated separately and inserted via script
+-- Run: node scripts/create-admin.js to create initial admin user
 
 -- ==========================================
 -- AUDIT LOG CLEANUP FUNCTION

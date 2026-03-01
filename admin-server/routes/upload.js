@@ -16,6 +16,7 @@ const router = express.Router();
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { pool, logAuditEvent } = require('../db/pool');
 const { DocumentClassifier, parseDocument, getInsertStatements } = require('../parsers');
+const WorkingParsers = require('../parsers/WorkingParsers');
 
 // ==========================================
 // MAIN DATABASE CONNECTION
@@ -565,12 +566,31 @@ router.post('/folder', async (req, res) => {
         // Classify document
         const classifier = new DocumentClassifier();
         const classification = classifier.classify(pdfFile);
-        
-        // Use provided year if not detected
         const fileYear = classification.year || parseInt(year) || new Date().getFullYear();
         
-        // Parse document with appropriate parser
-        const parsedResult = parseDocument(rawText, { ...classification, year: fileYear });
+        // Parse with working parsers based on type
+        let parsedItems = [];
+        let parsedResult = { success: false, items: [] };
+        
+        if (classification.type === 'income' || pdfFile.toLowerCase().includes('prihod') || pdfFile.toLowerCase().includes('pr 1')) {
+          parsedItems = WorkingParsers.parseIncome(rawText);
+          parsedResult = { success: true, items: parsedItems, type: 'income', totalAmount: parsedItems.reduce((s, i) => s + i.amount, 0) };
+        } else if (classification.type === 'expense' || pdfFile.toLowerCase().includes('razhod') || pdfFile.toLowerCase().includes('pr 2')) {
+          parsedItems = WorkingParsers.parseExpenses(rawText);
+          parsedResult = { success: true, items: parsedItems, type: 'expense', totalAmount: parsedItems.reduce((s, i) => s + i.amount, 0) };
+        } else if (classification.type === 'indicator' || pdfFile.match(/indik|d\d{3}/i)) {
+          parsedItems = WorkingParsers.parseIndicators(rawText, pdfFile);
+          parsedResult = { success: true, items: parsedItems, type: 'indicator', totalAmount: parsedItems.reduce((s, i) => s + i.amount_approved, 0) };
+        } else if (classification.type === 'loan' || pdfFile.toLowerCase().includes('zaem')) {
+          parsedItems = WorkingParsers.parseLoans(rawText, pdfFile);
+          parsedResult = { success: true, items: parsedItems, type: 'loan', totalAmount: parsedItems.reduce((s, i) => s + i.original_amount, 0) };
+        } else if (pdfFile.toLowerCase().includes('kmetstva') || pdfFile.toLowerCase().includes('pr 54')) {
+          parsedItems = WorkingParsers.parseVillages(rawText);
+          parsedResult = { success: true, items: parsedItems, type: 'village', totalAmount: parsedItems.reduce((s, i) => s + i.total_amount, 0) };
+        } else if (pdfFile.toLowerCase().includes('prognoza') || pdfFile.toLowerCase().includes('pr 57')) {
+          parsedItems = WorkingParsers.parseForecasts(rawText);
+          parsedResult = { success: true, items: parsedItems, type: 'forecast', totalAmount: parsedItems.reduce((s, i) => s + i.amount_2025, 0) };
+        }
         
         // Store document metadata
         const docResult = await storeDocumentMetadata({
@@ -593,11 +613,39 @@ router.post('/folder', async (req, res) => {
         // Store parsed data in appropriate tables
         let storedItems = 0;
         if (parsedResult.items && parsedResult.items.length > 0) {
-          const statements = getInsertStatements(parsedResult, documentId);
-          
-          for (const stmt of statements) {
+          for (const item of parsedResult.items) {
             try {
-              await mainPool.query(stmt.query, stmt.params);
+              if (parsedResult.type === 'income') {
+                await mainPool.query(
+                  'INSERT INTO budget_income (document_id, year, code, name, amount) VALUES ($1, $2, $3, $4, $5)',
+                  [documentId, fileYear, item.code, item.name, item.amount]
+                );
+              } else if (parsedResult.type === 'expense') {
+                await mainPool.query(
+                  'INSERT INTO budget_expenses (document_id, year, function_code, function_name, program_name, amount) VALUES ($1, $2, $3, $4, $5, $6)',
+                  [documentId, fileYear, item.code, item.name, item.category, item.amount]
+                );
+              } else if (parsedResult.type === 'indicator') {
+                await mainPool.query(
+                  'INSERT INTO budget_indicators (document_id, year, indicator_code, code, indicator_name, amount_approved, amount_executed) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                  [documentId, fileYear, item.indicator_code, item.code, item.indicator_name, item.amount_approved, item.amount_executed]
+                );
+              } else if (parsedResult.type === 'loan') {
+                await mainPool.query(
+                  'INSERT INTO budget_loans (document_id, year, loan_type, loan_code, original_amount, remaining_amount, interest_rate, purpose) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                  [documentId, fileYear, item.loan_type, item.loan_code, item.original_amount, item.remaining_amount, item.interest_rate, item.purpose]
+                );
+              } else if (parsedResult.type === 'village') {
+                await mainPool.query(
+                  'INSERT INTO budget_villages (document_id, year, code, name, state_personnel, state_maintenance, local_total, total_amount) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                  [documentId, fileYear, item.code, item.name, item.state_personnel, item.state_maintenance, item.local_total, item.total_amount]
+                );
+              } else if (parsedResult.type === 'forecast') {
+                await mainPool.query(
+                  'INSERT INTO budget_forecasts (document_id, code, name, amount_2024, amount_2025, amount_2026, amount_2027, amount_2028) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                  [documentId, item.code, item.name, item.amount_2024, item.amount_2025, item.amount_2026, item.amount_2027, item.amount_2028]
+                );
+              }
               storedItems++;
             } catch (err) {
               console.error(`Error storing item from ${pdfFile}:`, err.message);
@@ -609,13 +657,14 @@ router.post('/folder', async (req, res) => {
           file: pdfFile,
           success: true,
           documentId: documentId,
-          classification: classification,
+          type: parsedResult.type,
           year: fileYear,
           itemsStored: storedItems,
+          totalAmount: parsedResult.totalAmount || 0,
           pages: pdfData.numpages
         });
         
-        console.log(`✅ [ADMIN] Processed: ${pdfFile} (${classification.type}, ${storedItems} items)`);
+        console.log(`✅ [ADMIN] ${pdfFile}: ${parsedResult.type}, ${storedItems} items, ${(parsedResult.totalAmount || 0).toLocaleString()} лв`);
         
       } catch (fileError) {
         console.error(`❌ [ADMIN] Error processing ${pdfFile}:`, fileError.message);
@@ -627,11 +676,14 @@ router.post('/folder', async (req, res) => {
     }
 
     // Calculate summary
-    const incomeCount = results.filter(r => r.classification?.type === 'income').length;
-    const expenseCount = results.filter(r => r.classification?.type === 'expense').length;
-    const indicatorCount = results.filter(r => r.classification?.type === 'indicator').length;
-    const loanCount = results.filter(r => r.classification?.type === 'loan').length;
+    const incomeCount = results.filter(r => r.type === 'income').length;
+    const expenseCount = results.filter(r => r.type === 'expense').length;
+    const indicatorCount = results.filter(r => r.type === 'indicator').length;
+    const loanCount = results.filter(r => r.type === 'loan').length;
+    const villageCount = results.filter(r => r.type === 'village').length;
+    const forecastCount = results.filter(r => r.type === 'forecast').length;
     const totalItemsStored = results.reduce((sum, r) => sum + r.itemsStored, 0);
+    const totalAmount = results.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
 
     // Update audit log with success
     await logAuditEvent({
@@ -651,7 +703,7 @@ router.post('/folder', async (req, res) => {
         indicatorDocuments: indicatorCount,
         loanDocuments: loanCount,
         totalItemsStored: totalItemsStored,
-        results: results.map(r => ({ file: r.file, type: r.classification?.type, items: r.itemsStored })),
+        results: results.map(r => ({ file: r.file, type: r.type, items: r.itemsStored, amount: r.totalAmount })),
         errors: errors
       },
       success: true
@@ -671,7 +723,10 @@ router.post('/folder', async (req, res) => {
           expenses: expenseCount,
           indicators: indicatorCount,
           loans: loanCount,
-          totalItems: totalItemsStored
+          villages: villageCount,
+          forecasts: forecastCount,
+          totalItems: totalItemsStored,
+          totalAmount: totalAmount
         },
         results: results,
         errors: errors,

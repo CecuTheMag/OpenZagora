@@ -9,7 +9,7 @@ const { Pool } = require('pg');
 
 const PDF_DIR = path.join(__dirname, '..', 'budget-pdfs');
 const pool = new Pool({
-  host: 'db',
+  host: process.env.DB_HOST || 'localhost',
   port: 5432,
   database: 'open_zagora',
   user: 'postgres',

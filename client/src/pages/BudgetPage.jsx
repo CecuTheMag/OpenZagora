@@ -494,7 +494,8 @@ function SummaryTab({ totals, incomeData, expenseData, chartType, setChartType, 
   const incomeChartData = useMemo(() => {
     const grouped = {}
     incomeData.forEach(item => {
-      const code = item.code?.substring(0, 2) || '00'
+      // Extract first 2 digits from codes like "31-11" → "31"
+      const code = item.code?.split('-')[0] || '00'
       grouped[code] = (grouped[code] || 0) + parseFloat(item.amount || 0)
     })
     return Object.entries(grouped)
@@ -509,15 +510,11 @@ function SummaryTab({ totals, incomeData, expenseData, chartType, setChartType, 
   const expenseChartData = useMemo(() => {
     const grouped = {}
     expenseData.forEach(item => {
-      const code = item.function_code || '00'
-      grouped[code] = (grouped[code] || 0) + parseFloat(item.amount || 0)
+      const category = item.program_name || 'Други'
+      grouped[category] = (grouped[category] || 0) + parseFloat(item.amount || 0)
     })
     return Object.entries(grouped)
-      .map(([code, value]) => ({ 
-        name: getExpenseFunctionName(code), 
-        value,
-        code
-      }))
+      .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
   }, [expenseData])
 
@@ -1080,7 +1077,7 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
                       {item.indicator_code}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-gray-900">{item.department_name}</td>
+                  <td className="py-3 px-4 text-gray-900">{item.indicator_name || getIndicatorName(item.indicator_code)}</td>
                   <td className="py-3 px-4 text-right font-medium text-gray-900">
                     {formatCurrency(item.amount_approved)}
                   </td>
@@ -1338,6 +1335,11 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
   const total2027 = data.reduce((sum, item) => sum + parseFloat(item.amount_2027 || 0), 0)
   const total2028 = data.reduce((sum, item) => sum + parseFloat(item.amount_2028 || 0), 0)
 
+  const formatMillions = (amount) => {
+    if (!amount) return '0'
+    return `${(amount / 1000000).toFixed(1)}M`
+  }
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -1402,8 +1404,8 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
             ]}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
-              <YAxis tickFormatter={(v) => formatMillions(v)} />
-              <Tooltip content={<CustomTooltip />} />
+              <YAxis type="number" tickFormatter={(v) => formatMillions(v)} />
+              <Tooltip />
               <Line type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} dot={{fill: '#3b82f6'}} />
             </LineChart>
           </ResponsiveContainer>
@@ -1571,39 +1573,65 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
 // ==========================================
 function getIncomeCategoryName(code) {
   const names = {
-    '00': 'Total',
-    '01': 'Tax Revenue',
-    '02': 'Non-Tax Revenue',
-    '03': 'Grants',
-    '04': 'Transfers',
-    '05': 'Other Revenue',
-    '08': 'Loans',
-    '11': 'Capital Revenue'
+    '00': 'Общо приходи',
+    '01': 'Данъци върху доходите',
+    '02': 'Данъци върху печалбата', 
+    '03': 'Данъци върху собствеността',
+    '04': 'Данъци върху стоки и услуги',
+    '05': 'Данъци върху външната търговия',
+    '06': 'Други данъци',
+    '08': 'Приходи от собственост',
+    '09': 'Административни такси и услуги',
+    '10': 'Глоби, санкции и наказателни лихви',
+    '11': 'Доходи от концесии',
+    '12': 'Приходи от продажби',
+    '13': 'Имуществени данъци',
+    '14': 'Приходи от лихви',
+    '15': 'Други неданъчни приходи',
+    '17': 'Временни безлихвени заеми',
+    '24': 'Други приходи',
+    '25': 'Приходи от глоби',
+    '27': 'Общински такси',
+    '28': 'Приходи от санкции',
+    '31': 'Трансфери от централния бюджет',
+    '36': 'Помощи от ЕС',
+    '45': 'Текущи помощи',
+    '46': 'Собствени приходи',
+    '61': 'Трансфери между бюджети',
+    '62': 'Трансфери от ЕС',
+    '63': 'Други трансфери от ЕС',
+    '74': 'Заеми от централния бюджет',
+    '75': 'Заеми между бюджети',
+    '76': 'Заеми за ЕС проекти',
+    '77': 'Всичко заеми',
+    '88': 'Друго финансиране',
+    '93': 'Операции с финансови активи',
+    '95': 'Депозити и средства по сметки'
   }
-  return names[code] || `Category ${code}`
+  return names[code] || `Категория ${code}`
 }
 
 function getExpenseFunctionName(code) {
   const names = {
-    '00': 'Total',
-    '01': 'General Government',
-    '02': 'Defense',
-    '03': 'Public Order',
-    '04': 'Education',
-    '05': 'Health',
-    '06': 'Social Welfare',
-    '07': 'Housing',
-    '08': 'Culture',
-    '09': 'Religion',
-    '10': 'Agriculture',
-    '11': 'Industry',
-    '12': 'Transport',
-    '13': 'Communications',
-    '14': 'Other Economics',
-    '15': 'Environmental',
-    '16': 'R&D'
+    '00': 'Общо',
+    '01': 'Общи държавни служби',
+    '02': 'Отбрана и сигурност',
+    '03': 'Обществен ред и безопасност',
+    '04': 'Образование',
+    '05': 'Здравеопазване',
+    '06': 'Социално осигуряване',
+    '07': 'Жилищно строителство',
+    '08': 'Почивно дело, култура, религия',
+    '09': 'Религиозни дейности',
+    '10': 'Селско стопанство',
+    '11': 'Промишленост',
+    '12': 'Транспорт',
+    '13': 'Комуникации',
+    '14': 'Други икономически дейности',
+    '15': 'Опазване на околната среда',
+    '16': 'Научни изследвания'
   }
-  return names[code] || `Function ${code}`
+  return names[code] || `Функция ${code}`
 }
 
 function getIndicatorName(code) {

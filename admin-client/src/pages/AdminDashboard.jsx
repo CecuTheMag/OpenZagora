@@ -11,7 +11,7 @@ import {
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen, Zip
+  Database, Lock, FolderOpen
 } from 'lucide-react';
 
 const AdminDashboard = () => {

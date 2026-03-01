@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const pool = new Pool({
-  host: 'db',
+  host: process.env.DB_HOST || 'localhost',
   port: 5432,
   database: 'open_zagora',
   user: 'postgres',
@@ -94,9 +94,9 @@ async function importExpenses() {
     // Insert expenses
     for (const expense of expenses) {
       await pool.query(`
-        INSERT INTO budget_expenses (function_code, function_name, amount, year)
-        VALUES ($1, $2, $3, $4)
-      `, [expense.code, expense.name, expense.total_amount, expense.year]);
+        INSERT INTO budget_expenses (function_code, function_name, program_name, amount, year)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [expense.code, expense.name, expense.category, expense.total_amount, expense.year]);
     }
     
     const total = expenses.reduce((sum, exp) => sum + exp.total_amount, 0);

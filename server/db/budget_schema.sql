@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS budget_loans (
     interest_rate DECIMAL(5, 2), -- Interest rate if available
     start_date DATE,
     end_date DATE,
+    term_months INTEGER, -- Loan term in months
     purpose TEXT, -- Purpose of the loan
     monthly_payment DECIMAL(15, 2), -- Monthly payment amount
     notes TEXT,
