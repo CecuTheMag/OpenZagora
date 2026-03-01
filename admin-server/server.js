@@ -22,6 +22,8 @@ const { pool, testConnection, initSchema } = require('./db/pool');
 // Import route handlers
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
+const databaseRoutes = require('./routes/database');
+const budgetRoutes = require('./routes/budget');
 
 // Initialize Express application
 const app = express();
@@ -152,6 +154,8 @@ app.use('/api/auth/login', authLimiter);
 // Mount route handlers
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/upload', uploadRoutes);
+app.use('/api/admin/database', databaseRoutes);
+app.use('/api/admin/budget', budgetRoutes);
 
 // ==========================================
 // ERROR HANDLING

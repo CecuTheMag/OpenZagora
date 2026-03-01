@@ -10,6 +10,7 @@ import { useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
+import DatabaseManagement from './pages/DatabaseManagement'
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -38,12 +39,22 @@ function App() {
           } 
         />
         
-        {/* Dashboard - protected route */}
+{/* Dashboard - protected route */}
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
               <AdminDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Database Management - protected route */}
+        <Route 
+          path="/database" 
+          element={
+            <ProtectedRoute>
+              <DatabaseManagement />
             </ProtectedRoute>
           } 
         />

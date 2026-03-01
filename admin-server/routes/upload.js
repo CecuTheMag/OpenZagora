@@ -15,8 +15,7 @@ const { Pool } = require('pg');
 const router = express.Router();
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { pool, logAuditEvent } = require('../db/pool');
-const { DocumentClassifier, parseDocument, getInsertStatements } = require('../parsers');
-const WorkingParsers = require('../parsers/WorkingParsers');
+const { parseIncome, parseExpenses, parseVillages, parseLoans, parseForecasts, parseIndicators } = require('../parsers');
 
 // ==========================================
 // MAIN DATABASE CONNECTION
@@ -156,14 +155,60 @@ router.post('/', upload.single('pdf'), async (req, res) => {
     const parsedFilePath = path.join(__dirname, '..', 'parsed', `${filename}.json`);
     await fs.writeFile(parsedFilePath, JSON.stringify(rawData, null, 2));
 
-    // Classify document and use smart parsing
-    const classifier = new DocumentClassifier();
-    const classification = classifier.classify(originalname);
+    // Determine document type from filename
+    const lowerFilename = originalname.toLowerCase();
+    let classification = { type: documentType, year: new Date().getFullYear(), description: originalname };
     
-    console.log(`📋 [ADMIN] Document classified as: ${classification.type} (${classification.subtype}) for year ${classification.year}`);
+    if (lowerFilename.includes('prihod') || lowerFilename.includes('pr 1')) {
+      classification = { type: 'income', year: 2025, description: 'Income Budget' };
+    } else if (lowerFilename.includes('razhod') || lowerFilename.includes('pr 2')) {
+      classification = { type: 'expense', year: 2025, description: 'Expense Budget' };
+    } else if (lowerFilename.includes('kmetstva') || lowerFilename.includes('pr 54')) {
+      classification = { type: 'village', year: 2025, description: 'Village Budget' };
+    } else if (lowerFilename.includes('zaem')) {
+      classification = { type: 'loan', year: 2025, description: 'Loan Document' };
+    } else if (lowerFilename.includes('prognoza') || lowerFilename.includes('pr 57')) {
+      classification = { type: 'forecast', year: 2025, description: 'Budget Forecast' };
+    } else if (lowerFilename.match(/indik|d\d{3}/i)) {
+      classification = { type: 'indicator', year: 2025, description: 'Budget Indicator' };
+    }
+    
+    console.log(`📋 [ADMIN] Document classified as: ${classification.type} for year ${classification.year}`);
 
     // Parse document with appropriate parser
-    const parsedResult = parseDocument(rawText, classification);
+    let parsedResult = { success: false, items: [], type: classification.type };
+    
+    if (classification.type === 'income') {
+      const items = parseIncome(filePath, mainPool);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount, 0) };
+      }
+    } else if (classification.type === 'expense') {
+      const items = parseExpenses(filePath, mainPool);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount, 0) };
+      }
+    } else if (classification.type === 'village') {
+      const items = parseVillages(filePath, mainPool);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.total_amount, 0) };
+      }
+    } else if (classification.type === 'loan') {
+      const items = parseLoans(filePath, mainPool, originalname);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.original_amount, 0) };
+      }
+    } else if (classification.type === 'forecast') {
+      const items = parseForecasts(filePath, mainPool);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount_2025, 0) };
+      }
+    } else if (classification.type === 'indicator') {
+      const items = parseIndicators(filePath, mainPool, originalname);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount_approved, 0) };
+      }
+    }
     
     if (!parsedResult.success) {
       console.warn(`⚠️ [ADMIN] Parsing had issues:`, parsedResult.errors);
@@ -190,11 +235,39 @@ router.post('/', upload.single('pdf'), async (req, res) => {
     // Store parsed data in appropriate tables
     let storedItems = 0;
     if (parsedResult.items && parsedResult.items.length > 0) {
-      const statements = getInsertStatements(parsedResult, documentId);
-      
-      for (const stmt of statements) {
+      for (const item of parsedResult.items) {
         try {
-          await mainPool.query(stmt.query, stmt.params);
+          if (parsedResult.type === 'income') {
+            await mainPool.query(
+              'INSERT INTO budget_income (document_id, year, code, name, amount) VALUES ($1, $2, $3, $4, $5)',
+              [documentId, classification.year, item.code, item.name, item.amount]
+            );
+          } else if (parsedResult.type === 'expense') {
+            await mainPool.query(
+              'INSERT INTO budget_expenses (document_id, year, function_code, function_name, program_name, amount) VALUES ($1, $2, $3, $4, $5, $6)',
+              [documentId, classification.year, item.function_code, item.function_name, item.program_name, item.amount]
+            );
+          } else if (parsedResult.type === 'indicator') {
+            await mainPool.query(
+              'INSERT INTO budget_indicators (document_id, year, indicator_code, indicator_name, amount_approved, amount_executed) VALUES ($1, $2, $3, $4, $5, $6)',
+              [documentId, classification.year, item.indicator_code, item.indicator_name, item.amount_approved, item.amount_executed]
+            );
+          } else if (parsedResult.type === 'loan') {
+            await mainPool.query(
+              'INSERT INTO budget_loans (document_id, year, loan_type, loan_code, original_amount, remaining_amount, interest_rate, purpose) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+              [documentId, classification.year, item.loan_type, item.loan_code, item.original_amount, item.remaining_amount, item.interest_rate, item.purpose]
+            );
+          } else if (parsedResult.type === 'village') {
+            await mainPool.query(
+              'INSERT INTO budget_villages (document_id, year, code, name, state_personnel, state_maintenance, local_total, total_amount) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+              [documentId, classification.year, item.code, item.name, item.state_personnel, item.state_maintenance, item.local_total, item.total_amount]
+            );
+          } else if (parsedResult.type === 'forecast') {
+            await mainPool.query(
+              'INSERT INTO budget_forecasts (document_id, code, name, amount_2024, amount_2025, amount_2026, amount_2027, amount_2028) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+              [documentId, item.code, item.name, item.amount_2024, item.amount_2025, item.amount_2026, item.amount_2027, item.amount_2028]
+            );
+          }
           storedItems++;
         } catch (err) {
           console.error('Error storing parsed item:', err);
@@ -563,36 +636,60 @@ router.post('/folder', async (req, res) => {
         const pdfData = await pdfParse(pdfBuffer);
         const rawText = pdfData.text;
         
-        // Classify document
-        const classifier = new DocumentClassifier();
-        const classification = classifier.classify(pdfFile);
-        const fileYear = classification.year || parseInt(year) || new Date().getFullYear();
+        // Parse with working parsers in sequence (same as import-all-budget-data.sh)
+        const fileYear = parseInt(year) || 2025;
+        let parsedResult = { success: false, items: [], type: 'unknown' };
         
-        // Parse with working parsers based on type
-        let parsedItems = [];
-        let parsedResult = { success: false, items: [] };
+        // Step 1: Try income parser
+        if (pdfFile.toLowerCase().includes('prihod') || pdfFile.toLowerCase().includes('pr 1')) {
+          const items = parseIncome(filePath, mainPool);
+          if (items.length > 0) {
+            parsedResult = { success: true, items, type: 'income', totalAmount: items.reduce((s, i) => s + i.amount, 0) };
+          }
+        }
         
-        if (classification.type === 'income' || pdfFile.toLowerCase().includes('prihod') || pdfFile.toLowerCase().includes('pr 1')) {
-          parsedItems = WorkingParsers.parseIncome(rawText);
-          parsedResult = { success: true, items: parsedItems, type: 'income', totalAmount: parsedItems.reduce((s, i) => s + i.amount, 0) };
-        } else if (classification.type === 'expense' || pdfFile.toLowerCase().includes('razhod') || pdfFile.toLowerCase().includes('pr 2')) {
-          parsedItems = WorkingParsers.parseExpenses(rawText);
-          parsedResult = { success: true, items: parsedItems, type: 'expense', totalAmount: parsedItems.reduce((s, i) => s + i.amount, 0) };
-        } else if (classification.type === 'indicator' || pdfFile.match(/indik|d\d{3}/i)) {
-          parsedItems = WorkingParsers.parseIndicators(rawText, pdfFile);
-          parsedResult = { success: true, items: parsedItems, type: 'indicator', totalAmount: parsedItems.reduce((s, i) => s + i.amount_approved, 0) };
-        } else if (classification.type === 'loan' || pdfFile.toLowerCase().includes('zaem')) {
-          parsedItems = WorkingParsers.parseLoans(rawText, pdfFile);
-          parsedResult = { success: true, items: parsedItems, type: 'loan', totalAmount: parsedItems.reduce((s, i) => s + i.original_amount, 0) };
-        } else if (pdfFile.toLowerCase().includes('kmetstva') || pdfFile.toLowerCase().includes('pr 54')) {
-          parsedItems = WorkingParsers.parseVillages(rawText);
-          parsedResult = { success: true, items: parsedItems, type: 'village', totalAmount: parsedItems.reduce((s, i) => s + i.total_amount, 0) };
-        } else if (pdfFile.toLowerCase().includes('prognoza') || pdfFile.toLowerCase().includes('pr 57')) {
-          parsedItems = WorkingParsers.parseForecasts(rawText);
-          parsedResult = { success: true, items: parsedItems, type: 'forecast', totalAmount: parsedItems.reduce((s, i) => s + i.amount_2025, 0) };
+        // Step 2: Try expense parser
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('razhod') || pdfFile.toLowerCase().includes('pr 2'))) {
+          const items = parseExpenses(filePath, mainPool);
+          if (items.length > 0) {
+            parsedResult = { success: true, items, type: 'expense', totalAmount: items.reduce((s, i) => s + i.amount, 0) };
+          }
+        }
+        
+        // Step 3: Try village parser
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('kmetstva') || pdfFile.toLowerCase().includes('pr 54'))) {
+          const items = parseVillages(filePath, mainPool);
+          if (items.length > 0) {
+            parsedResult = { success: true, items, type: 'village', totalAmount: items.reduce((s, i) => s + i.total_amount, 0) };
+          }
+        }
+        
+        // Step 4: Try loan parser
+        if (!parsedResult.success && pdfFile.toLowerCase().includes('zaem')) {
+          const items = parseLoans(filePath, mainPool, pdfFile);
+          if (items.length > 0) {
+            parsedResult = { success: true, items, type: 'loan', totalAmount: items.reduce((s, i) => s + i.original_amount, 0) };
+          }
+        }
+        
+        // Step 5: Try forecast parser
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('prognoza') || pdfFile.toLowerCase().includes('pr 57'))) {
+          const items = parseForecasts(filePath, mainPool);
+          if (items.length > 0) {
+            parsedResult = { success: true, items, type: 'forecast', totalAmount: items.reduce((s, i) => s + i.amount_2025, 0) };
+          }
+        }
+        
+        // Step 6: Try indicator parser
+        if (!parsedResult.success && pdfFile.match(/indik|d\d{3}/i)) {
+          const items = parseIndicators(filePath, mainPool, pdfFile);
+          if (items.length > 0) {
+            parsedResult = { success: true, items, type: 'indicator', totalAmount: items.reduce((s, i) => s + i.amount_approved, 0) };
+          }
         }
         
         // Store document metadata
+        const classification = { type: parsedResult.type, year: fileYear, description: pdfFile };
         const docResult = await storeDocumentMetadata({
           filename: pdfFile,
           originalName: pdfFile,
@@ -623,12 +720,12 @@ router.post('/folder', async (req, res) => {
               } else if (parsedResult.type === 'expense') {
                 await mainPool.query(
                   'INSERT INTO budget_expenses (document_id, year, function_code, function_name, program_name, amount) VALUES ($1, $2, $3, $4, $5, $6)',
-                  [documentId, fileYear, item.code, item.name, item.category, item.amount]
+                  [documentId, fileYear, item.function_code, item.function_name, item.program_name, item.amount]
                 );
               } else if (parsedResult.type === 'indicator') {
                 await mainPool.query(
-                  'INSERT INTO budget_indicators (document_id, year, indicator_code, code, indicator_name, amount_approved, amount_executed) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                  [documentId, fileYear, item.indicator_code, item.code, item.indicator_name, item.amount_approved, item.amount_executed]
+                  'INSERT INTO budget_indicators (document_id, year, indicator_code, indicator_name, amount_approved, amount_executed) VALUES ($1, $2, $3, $4, $5, $6)',
+                  [documentId, fileYear, item.indicator_code, item.indicator_name, item.amount_approved, item.amount_executed]
                 );
               } else if (parsedResult.type === 'loan') {
                 await mainPool.query(
@@ -844,20 +941,18 @@ router.post('/zip', upload.single('zip'), async (req, res) => {
 // Check upload endpoint status
 // ==========================================
 router.get('/status', async (req, res) => {
-  // Get supported document types from classifier
-  const classifier = new DocumentClassifier();
-  const supportedTypes = classifier.getSupportedTypes();
-  
   res.json({
     status: 'ready',
     acceptedTypes: ['application/pdf'],
     maxFileSize: '50MB',
-    supportedDocumentTypes: supportedTypes.map(t => ({
-      type: t.type,
-      subtype: t.subtype,
-      description: t.description,
-      pattern: t.regex.toString()
-    })),
+    supportedDocumentTypes: [
+      { type: 'income', description: 'Income Budget (prihodi, pr 1)' },
+      { type: 'expense', description: 'Expense Budget (razhodi, pr 2)' },
+      { type: 'village', description: 'Village Budget (kmetstva, pr 54)' },
+      { type: 'loan', description: 'Loan Documents (zaem)' },
+      { type: 'forecast', description: 'Budget Forecast (prognoza, pr 57)' },
+      { type: 'indicator', description: 'Budget Indicators (indik, d###)' }
+    ],
     smartParsing: true,
     authenticated: true,
     user: {

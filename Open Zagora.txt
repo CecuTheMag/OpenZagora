@@ -1,0 +1,31 @@
+Open Zagora
+
+The Problem
+Citizens in post-communist countries have a deeply rooted distrust of local government — and for good reason. Decisions are made behind closed doors, public money disappears into PDFs nobody reads, and the average person has no real way to hold their administration accountable. This isn't a Stara Zagora-specific issue, it's a generational wound across the entire region. But as the world moves toward radical transparency and modern governance, cities that adapt first will lead.
+Open Zagora is that adaptation for Stara Zagora.
+
+What It Is
+A single, unified public platform that takes everything the municipality already legally publishes — budgets, projects, contracts, council votes — and transforms it from buried documents into a living, visual, citizen-facing dashboard. No new data is created. The information already exists. We just make it usable by actual people instead of accountants.
+
+How It Works
+Project & Budget Map
+All municipal projects parsed from official PDFs and displayed on an interactive city map. Every ongoing project shows its location, budget, contractor, start date, end date, and current status. Local news articles related to each project are pulled and displayed alongside it — so citizens see both the official version and what the media is reporting. One tap, full picture.
+Council Vote Tracker
+Every municipal council session, every proposal, every vote — logged, visualized, and searchable. Citizens can see exactly how their elected representative voted on every decision. Nothing goes unnoticed, nothing gets quietly re-voted at midnight. Full accountability by default.
+Citizen Voice
+Citizens can vote for or against proposed projects and budget allocations directly in the platform. Not a petition, not a comment box — a structured, visible signal that feeds back into the public record.
+
+Why It Works
+Countries like the UAE have already implemented this model at scale, and the result is measurable: higher government trust, faster adoption of public initiatives, and citizens who feel invested in their city rather than victimized by it. Open Zagora brings that same principle to a Bulgarian municipality context — built specifically for Stara Zagora, scalable to every city in the country.
+
+The Impact
+
+Citizens trust their local government more because they can verify everything themselves
+Information is designed for normal people, not bureaucrats
+Public opinion becomes a visible, structured part of governance
+People who can see where their taxes go feel less moral justification for evading them
+An interface simple enough that even elderly citizens can navigate it
+
+
+The Cost
+One server. One domain.

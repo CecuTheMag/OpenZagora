@@ -108,7 +108,7 @@ services:
     image: node:20-alpine
     container_name: open-zagora-admin-server-dev
     working_dir: /app
-    command: sh -c "chown -R node:node /app && su node -c 'npm install && npm run dev'"
+    command: sh -c "apk add --no-cache poppler-utils && npm install && npm run dev"
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -130,6 +130,7 @@ services:
       MAIN_DB_PASSWORD: postgres
     volumes:
       - ./admin-server:/app
+      - ./server/budget-pdfs:/app/budget-pdfs:ro
       - admin_server_node_modules:/app/node_modules
       - admin_uploads_data_dev:/app/uploads
       - admin_parsed_data_dev:/app/parsed

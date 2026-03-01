@@ -7,15 +7,17 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen
+  Database, Lock, FolderOpen, Table
 } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { user, logout, api } = useAuth();
+  const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState(null);
@@ -31,7 +33,7 @@ const AdminDashboard = () => {
   
   // Folder upload state
   const [activeTab, setActiveTab] = useState('single'); // 'single' or 'folder'
-  const [folderPath, setFolderPath] = useState('');
+  const [folderPath, setFolderPath] = useState('/app/budget-pdfs');
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [isProcessingFolder, setIsProcessingFolder] = useState(false);
   const [folderResult, setFolderResult] = useState(null);
@@ -171,7 +173,7 @@ const AdminDashboard = () => {
     setShowHistory(!showHistory);
   };
 
-  // Handle folder upload
+  // Handle folder upload - runs the shell script to import all budget data
   const handleFolderUpload = async () => {
     if (!folderPath.trim()) {
       setFolderError('Please enter a folder path');
@@ -183,7 +185,8 @@ const AdminDashboard = () => {
     setFolderResult(null);
 
     try {
-      const response = await api.post('/api/admin/upload/folder', {
+      // Use the new budget import endpoint that runs the shell script
+      const response = await api.post('/api/admin/budget/import', {
         folderPath: folderPath.trim(),
         year: year
       });
@@ -528,7 +531,7 @@ const AdminDashboard = () => {
                         value={folderPath}
                         onChange={(e) => setFolderPath(e.target.value)}
                         className="form-input"
-                        placeholder="/path/to/budget/2025_05_29_prilozhenia_byudzhet_2025"
+                        placeholder="/app/budget-pdfs"
                         disabled={isProcessingFolder}
                       />
                       <p className="mt-1 text-xs text-gray-500">
@@ -539,8 +542,7 @@ const AdminDashboard = () => {
                     {/* Example Path */}
                     <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
                       <p className="font-medium mb-1">Example paths:</p>
-                      <p className="font-mono">/home/king/Documents/GitHub/OpenZagora/info/wqoidcwd/budjet/2025_05_29_prilozhenia_byudzhet_2025</p>
-                      <p className="font-mono mt-1">./info/wqoidcwd/budjet/2025_05_29_prilozhenia_byudzhet_2025</p>
+                      <p className="font-mono">/app/budget-pdfs</p>
                     </div>
 
                     {/* Error Message */}
@@ -729,6 +731,28 @@ const AdminDashboard = () => {
                   <p>• Uploads are scanned and validated</p>
                   <p>• Database connections are encrypted</p>
                 </div>
+              </div>
+            </div>
+
+{/* Database Management Card */}
+            <div className="card">
+              <div className="card-header">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Table className="h-5 w-5 text-primary-600 mr-2" />
+                  Database Management
+                </h2>
+              </div>
+              <div className="card-body space-y-4">
+                <p className="text-sm text-gray-600">
+                  View, edit, and manage all database records directly from the admin interface.
+                </p>
+                <button
+                  onClick={() => navigate('/database')}
+                  className="btn-primary w-full"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  Open Database Manager
+                </button>
               </div>
             </div>
 
