@@ -18,6 +18,7 @@ const uploadRoutes = require('./routes/upload');
 const projectRoutes = require('./routes/projects');
 const budgetRoutes = require('./routes/budget');
 const voteRoutes = require('./routes/votes');
+const fileRoutes = require('./routes/files');
 
 // Initialize Express application
 const app = express();
@@ -65,6 +66,8 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Note: PDF files are now served through /api/files route for better error handling
+
 // ==========================================
 // API ROUTES
 // ==========================================
@@ -83,6 +86,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/budget', budgetRoutes);
 app.use('/api/votes', voteRoutes);
+app.use('/api/files', fileRoutes);
 
 // ==========================================
 // ERROR HANDLING

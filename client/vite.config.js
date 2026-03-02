@@ -9,10 +9,25 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://server:5000',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path
+      },
+      '/api/files': {
+        target: 'http://server:5000',
+        changeOrigin: true,
+        secure: false
+      },
+      '/admin-api': {
+        target: 'http://admin-server:5001',
+        changeOrigin: true,
+        secure: false
+      },
+      '/uploads': {
+        target: 'http://admin-server:5001',
+        changeOrigin: true,
+        secure: false
       }
     }
   },

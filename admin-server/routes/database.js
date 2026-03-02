@@ -513,7 +513,21 @@ router.get('/:table', async (req, res) => {
     }
 
     const validSortColumns = config.columns.map(c => c.name);
-    const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+    
+    // Only use created_at for sorting if it exists in the table
+    let sortColumn;
+    if (validSortColumns.includes(sortBy)) {
+      sortColumn = sortBy;
+    } else if (validSortColumns.includes('created_at')) {
+      sortColumn = 'created_at';
+    } else if (validSortColumns.includes('id')) {
+      sortColumn = 'id';
+    } else if (validSortColumns.length > 0) {
+      sortColumn = validSortColumns[0];
+    } else {
+      sortColumn = 'id'; // fallback
+    }
+    
     query += ` ORDER BY ${sortColumn} ${sortOrder === 'ASC' ? 'ASC' : 'DESC'}`;
 
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;

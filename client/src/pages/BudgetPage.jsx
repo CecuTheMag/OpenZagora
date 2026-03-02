@@ -1,8 +1,8 @@
 /**
- * Budget Page - Enhanced Version
+ * Budget Page - Enhanced Version with Professional Tables
  * 
  * Visualizes municipal budget data using tabs for different categories:
- * - Summary: Overview with charts
+ * - Summary: Overview with charts and detailed tables
  * - Income: Detailed income items from pr1 documents
  * - Expenses: Detailed expenses from pr2 documents
  * - Indicators: Budget indicators from dxxx documents
@@ -25,7 +25,10 @@ import {
   Legend,
   ResponsiveContainer,
   LineChart,
-  Line
+  Line,
+  AreaChart,
+  Area,
+  ComposedChart
 } from 'recharts'
 import {
   DollarSign,
@@ -54,11 +57,23 @@ import {
   Lightbulb,
   TreePine,
   MapPin,
-  TrendingUp as TrendIcon
+  TrendingUp as TrendIcon,
+  Percent,
+  Activity,
+  Target,
+  Layers,
+  PieChart as ChartPie,
+  Table,
+  X,
+  ExternalLink,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 
-// API base URL
+// API base URLs
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:5001/api'
 
 // Color palette for charts
 const COLORS = [
@@ -105,6 +120,9 @@ const TABS = [
   { id: 'forecasts', label: 'Forecasts', icon: TrendIcon },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
 ]
+
+// Population estimate for Stara Zagora municipality (can be updated from actual data)
+const MUNICIPALITY_POPULATION = 320000
 
 function BudgetPage() {
   const [activeTab, setActiveTab] = useState('summary')
@@ -202,19 +220,21 @@ function BudgetPage() {
     return `${value}%`
   }
 
-  // Calculate totals
+  // Calculate totals - ensure all values are numbers
   const totals = useMemo(() => {
-    const totalIncome = incomeData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
-    const totalExpenses = expenseData.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
-    const totalIndicators = indicatorData.reduce((sum, item) => sum + parseFloat(item.amount_approved || 0), 0)
-    const totalLoans = loanData.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
-    
+    const totalIncome = incomeData?.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0) || 0
+    const totalExpenses = expenseData?.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0) || 0
+    const totalIndicators = indicatorData?.reduce((sum, item) => sum + parseFloat(item.amount_approved || 0), 0) || 0
+    const totalLoans = loanData?.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0) || 0
+
     return {
-      income: totalIncome,
-      expenses: totalExpenses,
-      indicators: totalIndicators,
-      loans: totalLoans,
-      balance: totalIncome - totalExpenses
+      income: totalIncome || 0,
+      expenses: totalExpenses || 0,
+      indicators: totalIndicators || 0,
+      loans: totalLoans || 0,
+      balance: (totalIncome || 0) - (totalExpenses || 0),
+      utilizationRate: (totalIncome || 0) > 0 ? (((totalExpenses || 0) / (totalIncome || 1)) * 100).toFixed(1) : '0',
+      perCapita: (totalExpenses || 0) / MUNICIPALITY_POPULATION
     }
   }, [incomeData, expenseData, indicatorData, loanData])
 
@@ -384,12 +404,18 @@ function BudgetPage() {
           totals={totals}
           incomeData={incomeData}
           expenseData={expenseData}
+          indicatorData={indicatorData}
+          loanData={loanData}
+          villageData={villageData}
           chartType={chartType}
           setChartType={setChartType}
           formatCurrency={formatCurrency}
           formatMillions={formatMillions}
+          formatPercent={formatPercent}
           CustomTooltip={CustomTooltip}
           COLORS={COLORS}
+          FUNCTION_COLORS={FUNCTION_COLORS}
+          selectedYear={selectedYear}
         />
       )}
 
@@ -487,14 +513,14 @@ function BudgetPage() {
 }
 
 // ==========================================
-// SUMMARY TAB COMPONENT
+// ENHANCED SUMMARY TAB COMPONENT
 // ==========================================
-function SummaryTab({ totals, incomeData, expenseData, chartType, setChartType, formatCurrency, formatMillions, CustomTooltip, COLORS }) {
-  // Prepare chart data
+function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, villageData, chartType, setChartType, formatCurrency, formatMillions, formatPercent, CustomTooltip, COLORS, FUNCTION_COLORS, selectedYear }) {
+  
+  // Prepare income chart data grouped by category
   const incomeChartData = useMemo(() => {
     const grouped = {}
     incomeData.forEach(item => {
-      // Extract first 2 digits from codes like "31-11" → "31"
       const code = item.code?.split('-')[0] || '00'
       grouped[code] = (grouped[code] || 0) + parseFloat(item.amount || 0)
     })
@@ -502,173 +528,307 @@ function SummaryTab({ totals, incomeData, expenseData, chartType, setChartType, 
       .map(([code, value]) => ({ 
         name: getIncomeCategoryName(code), 
         value,
-        code
+        code,
+        percentage: totals.income > 0 ? ((value / totals.income) * 100).toFixed(1) : 0
       }))
       .sort((a, b) => b.value - a.value)
-  }, [incomeData])
+  }, [incomeData, totals.income])
 
+  // Prepare expense chart data grouped by function
   const expenseChartData = useMemo(() => {
     const grouped = {}
     expenseData.forEach(item => {
-      const category = item.program_name || 'Други'
-      grouped[category] = (grouped[category] || 0) + parseFloat(item.amount || 0)
+      const funcCode = item.function_code || '00'
+      const funcName = item.function_name || getExpenseFunctionName(funcCode)
+      if (!grouped[funcCode]) {
+        grouped[funcCode] = { code: funcCode, name: funcName, value: 0 }
+      }
+      grouped[funcCode].value += parseFloat(item.amount || 0)
     })
     return Object.entries(grouped)
-      .map(([name, value]) => ({ name, value }))
+      .map(([code, data]) => ({ 
+        ...data,
+        percentage: totals.expenses > 0 ? ((data.value / totals.expenses) * 100).toFixed(1) : 0
+      }))
       .sort((a, b) => b.value - a.value)
+  }, [expenseData, totals.expenses])
+
+  // Top 5 income sources
+  const topIncomeSources = useMemo(() => {
+    return incomeData
+      .map(item => ({
+        code: item.code,
+        name: item.name,
+        amount: parseFloat(item.amount || 0)
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5)
+  }, [incomeData])
+
+  // Top 5 expense categories
+  const topExpenseCategories = useMemo(() => {
+    const grouped = {}
+    expenseData.forEach(item => {
+      const funcCode = item.function_code || '00'
+      const funcName = item.function_name || getExpenseFunctionName(funcCode)
+      if (!grouped[funcCode]) {
+        grouped[funcCode] = { code: funcCode, name: funcName, amount: 0 }
+      }
+      grouped[funcCode].amount += parseFloat(item.amount || 0)
+    })
+    return Object.values(grouped)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5)
   }, [expenseData])
 
+  // Loan summary
+  const loanSummary = useMemo(() => {
+    const totalOriginal = loanData.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
+    const totalRemaining = loanData.reduce((sum, item) => sum + parseFloat(item.remaining_amount || 0), 0)
+    return {
+      count: loanData.length,
+      totalOriginal,
+      totalRemaining,
+      totalToPay: totalOriginal - totalRemaining
+    }
+  }, [loanData])
+
+  // Indicator summary
+  const indicatorSummary = useMemo(() => {
+    const totalApproved = indicatorData.reduce((sum, item) => sum + parseFloat(item.amount_approved || 0), 0)
+    const totalExecuted = indicatorData.reduce((sum, item) => sum + parseFloat(item.amount_executed || 0), 0)
+    return {
+      count: indicatorData.length,
+      totalApproved,
+      totalExecuted,
+      executionRate: totalApproved > 0 ? ((totalExecuted / totalApproved) * 100).toFixed(1) : 0
+    }
+  }, [indicatorData])
+
   const balanceColor = totals.balance >= 0 ? 'text-green-600' : 'text-red-600'
+  const balanceBg = totals.balance >= 0 ? 'from-green-50 to-green-100 border-green-200' : 'from-orange-50 to-orange-100 border-orange-200'
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Executive Summary Cards - KPI Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-          <div className="flex items-center justify-between">
+        {/* Total Income */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200 shadow-sm">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-700">Total Income</p>
+              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Total Income</p>
               <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(totals.income)}</p>
-              <p className="text-sm text-blue-600 mt-1">{incomeData.length} items</p>
+              <p className="text-xs text-blue-600 mt-1">{incomeData.length} sources</p>
             </div>
-            <div className="p-3 bg-blue-200 rounded-lg">
-              <ArrowUpDown className="h-6 w-6 text-blue-700" />
+            <div className="p-2 bg-blue-200 rounded-lg">
+              <ArrowUpDown className="h-5 w-5 text-blue-700" />
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
-          <div className="flex items-center justify-between">
+        {/* Total Expenses */}
+        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-5 border border-red-200 shadow-sm">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-red-700">Total Expenses</p>
+              <p className="text-xs font-medium text-red-600 uppercase tracking-wide">Total Expenses</p>
               <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(totals.expenses)}</p>
-              <p className="text-sm text-red-600 mt-1">{expenseData.length} items</p>
+              <p className="text-xs text-red-600 mt-1">{expenseData.length} line items</p>
             </div>
-            <div className="p-3 bg-red-200 rounded-lg">
-              <TrendingDown className="h-6 w-6 text-red-700" />
+            <div className="p-2 bg-red-200 rounded-lg">
+              <TrendingDown className="h-5 w-5 text-red-700" />
             </div>
           </div>
         </div>
 
-        <div className={`bg-gradient-to-br rounded-xl p-6 border ${totals.balance >= 0 ? 'from-green-50 to-green-100 border-green-200' : 'from-orange-50 to-orange-100 border-orange-200'}`}>
-          <div className="flex items-center justify-between">
+        {/* Budget Balance */}
+        <div className={`bg-gradient-to-br rounded-xl p-5 border shadow-sm ${balanceBg}`}>
+          <div className="flex items-start justify-between">
             <div>
-              <p className={`text-sm font-medium ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`}>Budget Balance</p>
+              <p className={`text-xs font-medium ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'} uppercase tracking-wide`}>Budget Balance</p>
               <p className={`text-2xl font-bold mt-1 ${balanceColor}`}>{formatCurrency(totals.balance)}</p>
-              <p className={`text-sm mt-1 ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+              <p className={`text-xs mt-1 ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
                 {totals.balance >= 0 ? 'Surplus' : 'Deficit'}
               </p>
             </div>
-            <div className={`p-3 rounded-lg ${totals.balance >= 0 ? 'bg-green-200' : 'bg-orange-200'}`}>
+            <div className={`p-2 rounded-lg ${totals.balance >= 0 ? 'bg-green-200' : 'bg-orange-200'}`}>
               {totals.balance >= 0 ? (
-                <TrendingUp className={`h-6 w-6 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
+                <TrendingUp className={`h-5 w-5 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
               ) : (
-                <TrendingDown className={`h-6 w-6 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
+                <TrendingDown className={`h-5 w-5 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
               )}
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-          <div className="flex items-center justify-between">
+        {/* Budget Utilization */}
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200 shadow-sm">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-700">Active Loans</p>
-              <p className="text-2xl font-bold text-purple-900 mt-1">{formatCurrency(totals.loans)}</p>
-              <p className="text-sm text-purple-600 mt-1">Total debt</p>
+              <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">Utilization Rate</p>
+              <p className="text-2xl font-bold text-purple-900 mt-1">{totals.utilizationRate}%</p>
+              <div className="mt-2 w-full bg-purple-200 rounded-full h-1.5">
+                <div 
+                  className="h-1.5 rounded-full bg-purple-600"
+                  style={{ width: `${Math.min(totals.utilizationRate, 100)}%` }}
+                ></div>
+              </div>
             </div>
-            <div className="p-3 bg-purple-200 rounded-lg">
-              <CreditCard className="h-6 w-6 text-purple-700" />
+            <div className="p-2 bg-purple-200 rounded-lg">
+              <Percent className="h-5 w-5 text-purple-700" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Charts */}
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Active Loans */}
+        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500">Active Loans</span>
+            <CreditCard className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">{formatCurrency(loanSummary.totalOriginal)}</p>
+          <p className="text-xs text-gray-500 mt-1">{loanSummary.count} loans • {formatCurrency(loanSummary.totalRemaining)} remaining</p>
+        </div>
+
+        {/* Village Budgets */}
+        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500">Village Allocations</span>
+            <MapPin className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">{formatCurrency(villageData.reduce((s, v) => s + parseFloat(v.total_amount || 0), 0))}</p>
+          <p className="text-xs text-gray-500 mt-1">{villageData.length} villages</p>
+        </div>
+
+        {/* Indicators Performance */}
+        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500">Indicators</span>
+            <Target className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">{indicatorSummary.executionRate}%</p>
+          <p className="text-xs text-gray-500 mt-1">{indicatorSummary.count} indicators • {formatCurrency(indicatorSummary.totalExecuted)} executed</p>
+        </div>
+
+        {/* Budget Health Score */}
+        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500">Budget Health</span>
+            <Activity className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className={`text-xl font-bold ${parseFloat(totals.utilizationRate) <= 100 ? 'text-green-600' : 'text-red-600'}`}>
+            {parseFloat(totals.utilizationRate) <= 100 ? 'Good' : 'Over Budget'}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">{parseFloat(totals.utilizationRate) <= 100 ? `${(100 - parseFloat(totals.utilizationRate)).toFixed(1)}% remaining` : 'Expenses exceed income'}</p>
+        </div>
+      </div>
+
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Income Chart */}
+        {/* Income Distribution Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Income Distribution</h3>
             <span className="text-sm text-gray-500">{formatMillions(totals.income)} BGN</span>
           </div>
-          <div className="h-64">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'pie' ? (
                 <PieChart>
                   <Pie
-                    data={incomeChartData}
+                    data={incomeChartData.slice(0, 6)}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
-                    fill="#8884d8"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2}
                     dataKey="value"
-                    nameKey="name"
                   >
-                    {incomeChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {incomeChartData.slice(0, 6).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="white" strokeWidth={2} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Legend 
+                    layout="vertical" 
+                    align="right" 
+                    verticalAlign="middle"
+                    iconType="circle"
+                    iconSize={10}
+                    formatter={(value, entry) => {
+                      const item = incomeChartData.find(d => d.name === value)
+                      return (
+                        <span className="text-sm text-gray-700">
+                          {value.length > 20 ? value.substring(0, 20) + '...' : value} 
+                          <span className="ml-2 text-gray-500">({item?.percentage}%)</span>
+                        </span>
+                      )
+                    }}
+                  />
                 </PieChart>
               ) : (
-                <BarChart data={incomeChartData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                <BarChart data={incomeChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={(v) => formatMillions(v)} />
-                  <YAxis type="category" dataKey="name" width={100} />
+                  <YAxis type="category" dataKey="name" width={120} tick={{fontSize: 11}} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" name="Amount">
-                    {incomeChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="value" name="Amount" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                 </BarChart>
               )}
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Expense Chart */}
+        {/* Expense Distribution Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Expenses by Function</h3>
             <span className="text-sm text-gray-500">{formatMillions(totals.expenses)} BGN</span>
           </div>
-          <div className="h-64">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'pie' ? (
                 <PieChart>
                   <Pie
-                    data={expenseChartData}
+                    data={expenseChartData.slice(0, 6)}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
-                    fill="#8884d8"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2}
                     dataKey="value"
-                    nameKey="name"
                   >
-                    {expenseChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {expenseChartData.slice(0, 6).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={FUNCTION_COLORS[entry.code] || COLORS[index % COLORS.length]} stroke="white" strokeWidth={2} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Legend 
+                    layout="vertical" 
+                    align="right" 
+                    verticalAlign="middle"
+                    iconType="circle"
+                    iconSize={10}
+                    formatter={(value, entry) => {
+                      const item = expenseChartData.find(d => d.name === value)
+                      return (
+                        <span className="text-sm text-gray-700">
+                          {value.length > 20 ? value.substring(0, 20) + '...' : value}
+                          <span className="ml-2 text-gray-500">({item?.percentage}%)</span>
+                        </span>
+                      )
+                    }}
+                  />
                 </PieChart>
               ) : (
-                <BarChart data={expenseChartData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                <BarChart data={expenseChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={(v) => formatMillions(v)} />
-                  <YAxis type="category" dataKey="name" width={100} />
+                  <YAxis type="category" dataKey="name" width={120} tick={{fontSize: 11}} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" name="Amount">
-                    {expenseChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="value" name="Amount" fill="#ef4444" radius={[0, 4, 4, 0]} />
                 </BarChart>
               )}
             </ResponsiveContainer>
@@ -703,6 +863,274 @@ function SummaryTab({ totals, incomeData, expenseData, chartType, setChartType, 
           </button>
         </div>
       </div>
+
+      {/* Detailed Tables Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Income Sources Table */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <ArrowUpDown className="h-5 w-5 text-blue-600 mr-2" />
+              Top Income Sources
+            </h3>
+            <span className="text-sm text-gray-500">{topIncomeSources.length} of {incomeData.length}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Code</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Source</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {topIncomeSources.map((item, index) => (
+                  <tr key={item.code || index} className="hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {item.code}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-900 truncate max-w-[150px]" title={item.name}>
+                      {item.name}
+                    </td>
+                    <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      {formatCurrency(item.amount)}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5 mr-2">
+                          <div 
+                            className="h-1.5 rounded-full bg-blue-500"
+                            style={{ width: `${totals.income > 0 ? ((item.amount / totals.income) * 100) : 0}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-gray-600">
+                          {totals.income > 0 ? ((item.amount / totals.income) * 100).toFixed(1) : 0}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50">
+                <tr>
+                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>Total</td>
+                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                    {formatCurrency(topIncomeSources.reduce((s, i) => s + i.amount, 0))}
+                  </td>
+                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                    {totals.income > 0 ? ((topIncomeSources.reduce((s, i) => s + i.amount, 0) / totals.income) * 100).toFixed(1) : 0}%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* Top Expense Categories Table */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Building className="h-5 w-5 text-red-600 mr-2" />
+              Top Expense Categories
+            </h3>
+            <span className="text-sm text-gray-500">{topExpenseCategories.length} functions</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Code</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Function</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {topExpenseCategories.map((item, index) => (
+                  <tr key={item.code || index} className="hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <span 
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white"
+                        style={{ backgroundColor: FUNCTION_COLORS[item.code] || '#6b7280' }}
+                      >
+                        {item.code}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-900 truncate max-w-[150px]" title={item.name}>
+                      {item.name}
+                    </td>
+                    <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      {formatCurrency(item.amount)}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5 mr-2">
+                          <div 
+                            className="h-1.5 rounded-full"
+                            style={{ 
+                              width: `${totals.expenses > 0 ? ((item.amount / totals.expenses) * 100) : 0}%`,
+                              backgroundColor: FUNCTION_COLORS[item.code] || '#6b7280'
+                            }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-gray-600">
+                          {totals.expenses > 0 ? ((item.amount / totals.expenses) * 100).toFixed(1) : 0}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50">
+                <tr>
+                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>Total</td>
+                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                    {formatCurrency(topExpenseCategories.reduce((s, i) => s + i.amount, 0))}
+                  </td>
+                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                    {totals.expenses > 0 ? ((topExpenseCategories.reduce((s, i) => s + i.amount, 0) / totals.expenses) * 100).toFixed(1) : 0}%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Complete Income Breakdown Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+            <Table className="h-5 w-5 text-primary-600 mr-2" />
+            Complete Income Breakdown
+          </h3>
+          <span className="text-sm text-gray-500">{incomeData.length} line items</span>
+        </div>
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Code</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Description</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Category Share</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {incomeData.map((item, index) => {
+                const categoryCode = item.code?.split('-')[0] || '00'
+                const categoryTotal = incomeChartData.find(c => c.code === categoryCode)?.value || 0
+                return (
+                  <tr key={item.id || index} className="hover:bg-gray-50">
+                    <td className="py-2 px-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                        {item.code}
+                      </span>
+                    </td>
+                    <td className="py-2 px-4 text-sm text-gray-700">{item.name}</td>
+                    <td className="py-2 px-4 text-right font-medium text-gray-900">
+                      {formatCurrency(item.amount)}
+                    </td>
+                    <td className="py-2 px-4 text-right">
+                      <span className="text-sm text-gray-600">
+                        {totals.income > 0 ? ((item.amount / totals.income) * 100).toFixed(2) : 0}%
+                      </span>
+                    </td>
+                    <td className="py-2 px-4 text-right">
+                      <div className="flex items-center justify-end">
+                        <div className="w-20 bg-gray-100 rounded-full h-1.5 mr-2">
+                          <div 
+                            className="h-1.5 rounded-full bg-blue-400"
+                            style={{ width: `${categoryTotal > 0 ? ((item.amount / categoryTotal) * 100) : 0}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {categoryTotal > 0 ? ((item.amount / categoryTotal) * 100).toFixed(0) : 0}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot className="bg-gray-100 font-semibold sticky bottom-0">
+              <tr>
+                <td className="py-3 px-4 text-gray-900" colSpan={2}>Total Income</td>
+                <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totals.income)}</td>
+                <td className="py-3 px-4 text-right text-gray-900">100%</td>
+                <td className="py-3 px-4 text-right text-gray-900">-</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Complete Expense Breakdown Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+            <Table className="h-5 w-5 text-primary-600 mr-2" />
+            Complete Expense Breakdown
+          </h3>
+          <span className="text-sm text-gray-500">{expenseData.length} line items</span>
+        </div>
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Function</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Program</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {expenseData.slice(0, 100).map((item, index) => (
+                <tr key={item.id || index} className="hover:bg-gray-50">
+                  <td className="py-2 px-4">
+                    <div className="flex items-center">
+                      <span 
+                        className="inline-flex items-center px-2 py-1 rounded text-xs font-medium text-white mr-2"
+                        style={{ backgroundColor: FUNCTION_COLORS[item.function_code] || '#6b7280' }}
+                      >
+                        {item.function_code}
+                      </span>
+                      <span className="text-sm text-gray-600">{item.function_name}</span>
+                    </div>
+                  </td>
+                  <td className="py-2 px-4 text-sm text-gray-700">{item.program_name || '-'}</td>
+                  <td className="py-2 px-4 text-right font-medium text-gray-900">
+                    {formatCurrency(item.amount)}
+                  </td>
+                  <td className="py-2 px-4 text-right">
+                    <span className="text-sm text-gray-600">
+                      {totals.expenses > 0 ? ((item.amount / totals.expenses) * 100).toFixed(2) : 0}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-100 font-semibold sticky bottom-0">
+              <tr>
+                <td className="py-3 px-4 text-gray-900" colSpan={2}>Total Expenses</td>
+                <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totals.expenses)}</td>
+                <td className="py-3 px-4 text-right text-gray-900">100%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {expenseData.length > 100 && (
+          <div className="px-6 py-3 bg-gray-50 text-sm text-gray-500 text-center">
+            Showing 100 of {expenseData.length} items. Use search to filter.
+          </div>
+        )}
+      </div>
+
     </div>
   )
 }
@@ -1466,6 +1894,9 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
 // DOCUMENTS TAB COMPONENT
 // ==========================================
 function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selectedYear }) {
+  const [selectedDoc, setSelectedDoc] = useState(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  
   const filteredDocs = useMemo(() => {
     if (!searchTerm) return data
     return data.filter(doc => 
@@ -1495,6 +1926,34 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
     }
   }
 
+  // Get PDF URL - serves PDFs from budget-pdfs directory on main server
+  const getPdfUrl = (doc) => {
+    // Use filename if available (from admin uploads)
+    if (doc.filename) {
+      return `/api/files/${doc.filename}`
+    }
+    // Fallback to original_name - the server searches in budget-pdfs, uploads, and parsed directories
+    if (doc.original_name) {
+      return `/api/files/${doc.original_name}`
+    }
+    // Fallback to file_path
+    if (doc.file_path) {
+      return `/api/files${doc.file_path}`
+    }
+    return null
+  }
+
+
+  const handleDocClick = (doc) => {
+    setSelectedDoc(doc)
+    setPdfLoading(true)
+  }
+
+  const closeViewer = () => {
+    setSelectedDoc(null)
+    setPdfLoading(false)
+  }
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -1521,7 +1980,8 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
           return (
             <div 
               key={doc.id}
-              className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+              onClick={() => handleDocClick(doc)}
+              className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-lg hover:border-primary-300 cursor-pointer transition-all transform hover:scale-[1.02]"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="p-2 bg-gray-100 rounded-lg">
@@ -1554,6 +2014,10 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
                   </div>
                 )}
               </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center text-primary-600 text-sm font-medium">
+                <FileText className="h-4 w-4 mr-1" />
+                Click to view PDF
+              </div>
             </div>
           )
         })}
@@ -1562,6 +2026,78 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
       {filteredDocs.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {searchTerm ? 'No documents match your search' : `No documents found for ${selectedYear}`}
+        </div>
+      )}
+
+      {/* Slide-in PDF Viewer Panel */}
+      {selectedDoc && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={closeViewer}
+          />
+          
+          {/* Panel */}
+          <div className="absolute right-0 top-0 h-full w-full md:w-[85%] lg:w-[75%] xl:w-[65%] bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-out">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
+              <div className="flex items-center space-x-3">
+                <FileText className="h-5 w-5 text-primary-400" />
+                <div>
+                  <h3 className="text-white font-semibold truncate max-w-md">{selectedDoc.original_name}</h3>
+                  <p className="text-gray-400 text-xs">{selectedDoc.document_type} • {selectedDoc.year}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <a 
+                  href={getPdfUrl(selectedDoc)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="h-5 w-5" />
+                </a>
+                <button 
+                  onClick={closeViewer}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="h-[calc(100%-60px)] bg-gray-100">
+              {pdfLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
+                    <p className="text-gray-600 font-medium">Loading PDF...</p>
+                  </div>
+                </div>
+              )}
+              
+              {getPdfUrl(selectedDoc) ? (
+                <iframe 
+                  src={getPdfUrl(selectedDoc)}
+                  className="w-full h-full"
+                  title="PDF Viewer"
+                  onLoad={() => setPdfLoading(false)}
+                  onError={() => setPdfLoading(false)}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">PDF not available</p>
+                    <p className="text-gray-400 text-sm mt-1">The document file could not be found</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

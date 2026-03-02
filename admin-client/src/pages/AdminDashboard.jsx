@@ -561,15 +561,24 @@ const AdminDashboard = () => {
                           <div>
                             <p className="font-medium">Folder processed successfully!</p>
                             <div className="text-sm mt-2 space-y-1">
-                              <p>Total files: {folderResult.totalFiles}</p>
-                              <p>Processed: {folderResult.processedSuccessfully}</p>
-                              <p>Failed: {folderResult.failedFiles}</p>
+                              <p>Total files: {folderResult.filesCopied || folderResult.pdfFiles?.length || 0}</p>
                               <p className="font-medium mt-2">Summary:</p>
-                              <p>• Income documents: {folderResult.summary?.income || 0}</p>
-                              <p>• Expense documents: {folderResult.summary?.expenses || 0}</p>
-                              <p>• Indicator documents: {folderResult.summary?.indicators || 0}</p>
-                              <p>• Loan documents: {folderResult.summary?.loans || 0}</p>
-                              <p className="font-medium mt-2">Total items stored: {folderResult.summary?.totalItems || 0}</p>
+                              <p>• Income documents: {folderResult.summary?.income?.items || 0}</p>
+                              <p>• Expense documents: {folderResult.summary?.expenses?.items || 0}</p>
+                              <p>• Indicator documents: {folderResult.summary?.indicators?.items || 0}</p>
+                              <p>• Loan documents: {folderResult.summary?.loans?.items || 0}</p>
+                              <p>• Village documents: {folderResult.summary?.villages?.items || 0}</p>
+                              <p>• Forecast documents: {folderResult.summary?.forecasts?.items || 0}</p>
+                              <p className="font-medium mt-2">
+                                Total items stored: {
+                                  (folderResult.summary?.income?.items || 0) +
+                                  (folderResult.summary?.expenses?.items || 0) +
+                                  (folderResult.summary?.indicators?.items || 0) +
+                                  (folderResult.summary?.loans?.items || 0) +
+                                  (folderResult.summary?.villages?.items || 0) +
+                                  (folderResult.summary?.forecasts?.items || 0)
+                                }
+                              </p>
                             </div>
                           </div>
                         </div>
