@@ -44,16 +44,59 @@ const tableConfigs = {
   projects: {
     tableName: 'projects',
     columns: [
+      // Basic Information
+      { name: 'project_code', type: 'varchar(50)', required: false, editable: true },
       { name: 'title', type: 'varchar(500)', required: true, editable: true },
       { name: 'description', type: 'text', required: false, editable: true },
-      { name: 'budget', type: 'decimal(15,2)', required: false, editable: true },
-      { name: 'contractor', type: 'varchar(255)', required: false, editable: true },
-      { name: 'start_date', type: 'date', required: false, editable: true },
-      { name: 'end_date', type: 'date', required: false, editable: true },
+      { name: 'detailed_description', type: 'text', required: false, editable: true },
+      
+      // Status & Priority
       { name: 'status', type: 'varchar(50)', required: false, editable: true, default: 'planned' },
+      { name: 'priority', type: 'varchar(20)', required: false, editable: true, default: 'normal' },
+      
+      // Budget Information
+      { name: 'budget', type: 'decimal(15,2)', required: false, editable: true },
+      { name: 'budget_spent', type: 'decimal(15,2)', required: false, editable: true },
+      { name: 'funding_source', type: 'varchar(255)', required: false, editable: true },
+      { name: 'budget_category', type: 'varchar(100)', required: false, editable: true },
+      
+      // Contractor Information
+      { name: 'contractor', type: 'varchar(255)', required: false, editable: true },
+      { name: 'contractor_contact', type: 'text', required: false, editable: true },
+      { name: 'contract_number', type: 'varchar(100)', required: false, editable: true },
+      { name: 'contract_value', type: 'decimal(15,2)', required: false, editable: true },
+      
+      // Location Information
+      { name: 'address', type: 'varchar(500)', required: false, editable: true },
       { name: 'lat', type: 'decimal(10,8)', required: false, editable: true },
       { name: 'lng', type: 'decimal(11,8)', required: false, editable: true },
-      { name: 'raw_text', type: 'text', required: false, editable: true }
+      { name: 'municipality', type: 'varchar(100)', required: false, editable: true },
+      { name: 'settlement', type: 'varchar(100)', required: false, editable: true },
+      
+      // Timeline
+      { name: 'start_date', type: 'date', required: false, editable: true },
+      { name: 'end_date', type: 'date', required: false, editable: true },
+      { name: 'actual_start_date', type: 'date', required: false, editable: true },
+      { name: 'actual_end_date', type: 'date', required: false, editable: true },
+      { name: 'duration_days', type: 'integer', required: false, editable: true },
+      
+      // Project Type
+      { name: 'project_type', type: 'varchar(100)', required: false, editable: true },
+      { name: 'category', type: 'varchar(100)', required: false, editable: true },
+      
+      // Additional Information
+      { name: 'raw_text', type: 'text', required: false, editable: true },
+      { name: 'notes', type: 'text', required: false, editable: true },
+      { name: 'documents', type: 'jsonb', required: false, editable: true },
+      
+      // Public Visibility
+      { name: 'public_visible', type: 'boolean', required: false, editable: true, default: true },
+      { name: 'citizen_votes_enabled', type: 'boolean', required: false, editable: true, default: true },
+      
+      // Metadata
+      { name: 'created_by', type: 'varchar(255)', required: false, editable: true },
+      { name: 'approved_by', type: 'varchar(255)', required: false, editable: true },
+      { name: 'approval_date', type: 'date', required: false, editable: true }
     ],
     displayName: 'Municipal Projects',
     description: 'Construction and infrastructure projects'

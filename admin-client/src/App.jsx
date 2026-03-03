@@ -11,6 +11,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
 import DatabaseManagement from './pages/DatabaseManagement'
+import ProjectsPage from './pages/ProjectsPage'
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -49,12 +50,22 @@ function App() {
           } 
         />
         
-        {/* Database Management - protected route */}
+{/* Database Management - protected route */}
         <Route 
           path="/database" 
           element={
             <ProtectedRoute>
               <DatabaseManagement />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Projects Management - protected route */}
+        <Route 
+          path="/projects" 
+          element={
+            <ProtectedRoute>
+              <ProjectsPage />
             </ProtectedRoute>
           } 
         />

@@ -12,7 +12,7 @@ import {
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen, Table
+  Database, Lock, FolderOpen, Table, MapPin
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -761,6 +761,28 @@ const AdminDashboard = () => {
                 >
                   <Database className="h-4 w-4 mr-2" />
                   Open Database Manager
+</button>
+              </div>
+            </div>
+
+            {/* Project Map Card */}
+            <div className="card">
+              <div className="card-header">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <MapPin className="h-5 w-5 text-primary-600 mr-2" />
+                  Project Map
+                </h2>
+              </div>
+              <div className="card-body space-y-4">
+                <p className="text-sm text-gray-600">
+                  Manage municipal projects on the interactive map. Create, edit, and track project status with coordinates.
+                </p>
+                <button
+                  onClick={() => navigate('/projects')}
+                  className="btn-primary w-full"
+                >
+                  <MapPin className="h-4 w-4 mr-2" />
+                  Open Project Manager
                 </button>
               </div>
             </div>

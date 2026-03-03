@@ -7,16 +7,57 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Projects table: Stores municipal projects with location data
 CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_code VARCHAR(50), -- Unique project code (e.g., PRJ-2025-001)
     title VARCHAR(500) NOT NULL,
     description TEXT,
+    detailed_description TEXT, -- Extended description
+    status VARCHAR(50) DEFAULT 'planned' CHECK (status IN ('planned', 'active', 'completed', 'cancelled', 'on_hold')),
+    priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    
+    -- Budget Information
     budget DECIMAL(15, 2),
+    budget_spent DECIMAL(15, 2) DEFAULT 0,
+    funding_source VARCHAR(255), -- EU funds, municipal budget, state budget, etc.
+    budget_category VARCHAR(100), -- Infrastructure, Education, Healthcare, etc.
+    
+    -- Contractor Information
     contractor VARCHAR(255),
-    start_date DATE,
-    end_date DATE,
-    status VARCHAR(50) DEFAULT 'planned', -- planned, active, completed, cancelled
+    contractor_contact TEXT,
+    contract_number VARCHAR(100),
+    contract_value DECIMAL(15, 2),
+    
+    -- Location Information
+    address VARCHAR(500),
     lat DECIMAL(10, 8), -- Latitude for map
     lng DECIMAL(11, 8), -- Longitude for map
+    municipality VARCHAR(100), -- Municipality/district
+    settlement VARCHAR(100), -- Village/town name
+    
+    -- Timeline
+    start_date DATE,
+    end_date DATE,
+    actual_start_date DATE,
+    actual_end_date DATE,
+    duration_days INTEGER,
+    
+    -- Project Type
+    project_type VARCHAR(100), -- Construction, Renovation, Maintenance, etc.
+    category VARCHAR(100), -- Public Works, Education, Health, etc.
+    
+    -- Additional Information
     raw_text TEXT, -- Original parsed text from PDF
+    notes TEXT,
+    documents JSONB, -- Array of document references
+    
+    -- Public Interaction
+    public_visible BOOLEAN DEFAULT true,
+    citizen_votes_enabled BOOLEAN DEFAULT true,
+    
+    -- Metadata
+    created_by VARCHAR(255),
+    approved_by VARCHAR(255),
+    approval_date DATE,
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -54,7 +95,16 @@ CREATE TABLE IF NOT EXISTS citizen_votes (
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_projects_priority ON projects(priority);
 CREATE INDEX IF NOT EXISTS idx_projects_dates ON projects(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_projects_dates_actual ON projects(actual_start_date, actual_end_date);
+CREATE INDEX IF NOT EXISTS idx_projects_location ON projects(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_projects_code ON projects(project_code);
+CREATE INDEX IF NOT EXISTS idx_projects_budget_category ON projects(budget_category);
+CREATE INDEX IF NOT EXISTS idx_projects_funding_source ON projects(funding_source);
+CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(project_type);
+CREATE INDEX IF NOT EXISTS idx_projects_category ON projects(category);
+CREATE INDEX IF NOT EXISTS idx_projects_visible ON projects(public_visible);
 CREATE INDEX IF NOT EXISTS idx_budget_year ON budget_items(year);
 CREATE INDEX IF NOT EXISTS idx_council_dates ON council_votes(session_date);
 CREATE INDEX IF NOT EXISTS idx_citizen_project ON citizen_votes(project_id);
