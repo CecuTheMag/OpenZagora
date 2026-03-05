@@ -38,7 +38,7 @@ function CouncilPage() {
   const [votes, setVotes] = useState([])
   const [statistics, setStatistics] = useState(null)
   const [years, setYears] = useState([])
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -54,9 +54,11 @@ function CouncilPage() {
   const fetchVotes = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(
-        `${API_URL}/votes?year=${selectedYear}&limit=100`
-      )
+      // If 'all' is selected, fetch without year filter to get all votes
+      const url = selectedYear === 'all' 
+        ? `${API_URL}/votes?limit=100`
+        : `${API_URL}/votes?year=${selectedYear}&limit=100`
+      const response = await axios.get(url)
       setVotes(response.data.data || [])
       setError(null)
     } catch (err) {
@@ -69,19 +71,39 @@ function CouncilPage() {
 
   const fetchStatistics = async () => {
     try {
+      // Get statistics for the selected year
+      // If 'all' is selected, use the most recent year with data
+      let year = selectedYear
+      if (selectedYear === 'all') {
+        // Use the most recent year from available years, or fall back to current year
+        if (years.length > 0) {
+          year = Math.max(...years)
+        } else {
+          year = new Date().getFullYear()
+        }
+      }
+      
       const response = await axios.get(
-        `${API_URL}/votes/statistics?year=${selectedYear}`
+        `${API_URL}/votes/statistics?year=${year}`
       )
       setStatistics(response.data)
     } catch (err) {
       console.error('Error fetching statistics:', err)
+      // Try fetching without year filter as fallback
+      try {
+        const fallbackResponse = await axios.get(`${API_URL}/votes/statistics`)
+        setStatistics(fallbackResponse.data)
+      } catch (fallbackErr) {
+        console.error('Fallback statistics fetch also failed:', fallbackErr)
+      }
     }
   }
 
   const fetchYears = async () => {
     try {
       const response = await axios.get(`${API_URL}/votes/years`)
-      setYears(response.data.years || [new Date().getFullYear()])
+      const yearsList = response.data.years || []
+      setYears(yearsList)
     } catch (err) {
       console.error('Error fetching years:', err)
     }
@@ -176,9 +198,10 @@ function CouncilPage() {
           <Calendar className="h-5 w-5 text-gray-500" />
           <select
             value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="input-field w-32"
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="input-field w-40"
           >
+            <option value="all">All Years</option>
             {years.map((year) => (
               <option key={year} value={year}>{year}</option>
             ))}
@@ -471,3 +494,5 @@ function CouncilPage() {
 }
 
 export default CouncilPage
+
+

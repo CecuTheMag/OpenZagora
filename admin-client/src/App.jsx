@@ -12,6 +12,7 @@ import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
 import DatabaseManagement from './pages/DatabaseManagement'
 import ProjectsPage from './pages/ProjectsPage'
+import CouncilVotesPage from './pages/CouncilVotesPage'
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -66,6 +67,16 @@ function App() {
           element={
             <ProtectedRoute>
               <ProjectsPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Council Votes Management - protected route */}
+        <Route 
+          path="/council-votes" 
+          element={
+            <ProtectedRoute>
+              <CouncilVotesPage />
             </ProtectedRoute>
           } 
         />

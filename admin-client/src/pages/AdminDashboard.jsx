@@ -12,7 +12,7 @@ import {
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen, Table, MapPin
+  Database, Lock, FolderOpen, Table, MapPin, Vote
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -783,6 +783,28 @@ const AdminDashboard = () => {
                 >
                   <MapPin className="h-4 w-4 mr-2" />
                   Open Project Manager
+                </button>
+              </div>
+            </div>
+
+            {/* Council Votes Card */}
+            <div className="card">
+              <div className="card-header">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Vote className="h-5 w-5 text-primary-600 mr-2" />
+                  Council Votes
+                </h2>
+              </div>
+              <div className="card-body space-y-4">
+                <p className="text-sm text-gray-600">
+                  Manage municipal council voting records. Create, edit, and track voting sessions, proposals, and results.
+                </p>
+                <button
+                  onClick={() => navigate('/council-votes')}
+                  className="btn-primary w-full"
+                >
+                  <Vote className="h-4 w-4 mr-2" />
+                  Open Council Votes Manager
                 </button>
               </div>
             </div>

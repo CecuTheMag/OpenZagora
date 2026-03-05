@@ -17,7 +17,7 @@ const { logAuditEvent } = require('../db/pool');
 const mainDbConfig = {
   host: process.env.MAIN_DB_HOST || 'localhost',
   port: parseInt(process.env.MAIN_DB_PORT || '5432'),
-  database: process.env.MAIN_DB_NAME || 'openzagora',
+  database: process.env.MAIN_DB_NAME || 'open_zagora',
   user: process.env.MAIN_DB_USER || 'postgres',
   password: process.env.MAIN_DB_PASSWORD || 'postgres',
   max: 10,
