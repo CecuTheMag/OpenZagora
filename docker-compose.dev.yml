@@ -1,8 +1,6 @@
 # Open Zagora - Development Docker Compose
 # Use this for development with hot reloading
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   db:
@@ -16,8 +14,8 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
-      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./server/db/budget_schema.sql:/docker-entrypoint-initdb.d/02-budget-schema.sql:ro
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,Z
+      - ./server/db/budget_schema.sql:/docker-entrypoint-initdb.d/02-budget-schema.sql:ro,Z
     ports:
       - "5432:5432"
     healthcheck:
@@ -45,7 +43,7 @@ services:
       DB_PASSWORD: postgres
       CLIENT_URL: http://localhost:5173
     volumes:
-      - ./server:/app
+      - ./server:/app:Z
       - server_node_modules:/app/node_modules
       - uploads_data_dev:/app/uploads
       - parsed_data_dev:/app/parsed
@@ -67,7 +65,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:5000/api
     volumes:
-      - ./client:/app
+      - ./client:/app:Z
       - client_node_modules:/app/node_modules
     ports:
       - "5173:5173"
@@ -92,7 +90,7 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - admin_postgres_data_dev:/var/lib/postgresql/data
-      - ./admin-server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./admin-server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,Z
     ports:
       - "5433:5432"
     healthcheck:
@@ -116,21 +114,19 @@ services:
       JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars-long
       JWT_EXPIRES_IN: 24h
       ADMIN_CLIENT_URL: http://localhost:5174
-      # Admin Database Connection
       ADMIN_DB_HOST: admin-db
       ADMIN_DB_PORT: 5432
       ADMIN_DB_NAME: openzagora_admin
       ADMIN_DB_USER: admin_user
       ADMIN_DB_PASSWORD: admin_pass
-      # Main Database Connection (for PDF storage)
       MAIN_DB_HOST: db
       MAIN_DB_PORT: 5432
       MAIN_DB_NAME: open_zagora
       MAIN_DB_USER: postgres
       MAIN_DB_PASSWORD: postgres
     volumes:
-      - ./admin-server:/app
-      - ./server/budget-pdfs:/app/budget-pdfs:ro
+      - ./admin-server:/app:Z
+      - ./server/budget-pdfs:/app/budget-pdfs:Z
       - admin_server_node_modules:/app/node_modules
       - admin_uploads_data_dev:/app/uploads
       - admin_parsed_data_dev:/app/parsed
@@ -154,7 +150,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:5001
     volumes:
-      - ./admin-client:/app
+      - ./admin-client:/app:Z
       - admin_client_node_modules:/app/node_modules
     ports:
       - "5174:5174"
@@ -175,7 +171,6 @@ volumes:
     driver: local
   parsed_data_dev:
     driver: local
-  # Admin volumes
   admin_postgres_data_dev:
     driver: local
   admin_server_node_modules:
