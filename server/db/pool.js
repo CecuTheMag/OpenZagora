@@ -38,7 +38,7 @@ const testConnection = async (retries = 5, delay = 3000) => {
       const client = await pool.connect();
       console.log('✅ Database connected successfully');
       client.release();
-      return;
+      return true;
     } catch (err) {
       console.error(`❌ Database connection attempt ${i + 1}/${retries} failed:`, err.message);
       if (i < retries - 1) {
@@ -50,12 +50,60 @@ const testConnection = async (retries = 5, delay = 3000) => {
       }
     }
   }
+  return false;
+};
+
+// Initialize database schema if tables don't exist
+const initSchema = async () => {
+  try {
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    // Check if projects table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'projects'
+      ) as exists
+    `);
+    
+    if (tableCheck.rows[0].exists) {
+      console.log('✅ Database schema already initialized');
+      return true;
+    }
+    
+    console.log('📦 Initializing database schema...');
+    
+    // Read and execute schema files
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schemaSQL = await fs.readFile(schemaPath, 'utf8');
+    await pool.query(schemaSQL);
+    console.log('✅ Main schema initialized');
+    
+    // Also execute budget schema if it exists
+    const budgetSchemaPath = path.join(__dirname, 'budget_schema.sql');
+    try {
+      const budgetSchemaSQL = await fs.readFile(budgetSchemaPath, 'utf8');
+      await pool.query(budgetSchemaSQL);
+      console.log('✅ Budget schema initialized');
+    } catch (err) {
+      console.log('ℹ️ No budget schema found or error:', err.message);
+    }
+    
+    console.log('✅ Database schema initialization complete');
+    return true;
+  } catch (err) {
+    console.error('❌ Failed to initialize schema:', err.message);
+    return false;
+  }
 };
 
 // Export the pool and test function
 module.exports = {
   pool,
   testConnection,
+  initSchema,
   // Helper function for running queries
   query: (text, params) => pool.query(text, params),
 };

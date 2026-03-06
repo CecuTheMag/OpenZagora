@@ -16,15 +16,12 @@ COPY . .
 # Create upload directories
 RUN mkdir -p uploads parsed
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S adminuser && \
-    adduser -S adminuser -u 1001
-
-# Change ownership of app directory
-RUN chown -R adminuser:adminuser /app
-
-# Switch to non-root user
-USER adminuser
+# NOTE: For development, we run as root to avoid volume mount permission issues.
+# In production, you should use a non-root user. Uncomment below for production:
+# RUN addgroup -g 1001 -S adminuser && \
+#     adduser -S adminuser -u 1001
+# RUN chown -R adminuser:adminuser /app
+# USER adminuser
 
 # Expose admin server port (different from main server)
 EXPOSE 5001

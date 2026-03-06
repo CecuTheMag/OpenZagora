@@ -71,21 +71,13 @@ function CouncilPage() {
 
   const fetchStatistics = async () => {
     try {
-      // Get statistics for the selected year
-      // If 'all' is selected, use the most recent year with data
-      let year = selectedYear
-      if (selectedYear === 'all') {
-        // Use the most recent year from available years, or fall back to current year
-        if (years.length > 0) {
-          year = Math.max(...years)
-        } else {
-          year = new Date().getFullYear()
-        }
+      // Get statistics - if 'all' is selected, get all-time statistics
+      let url = `${API_URL}/votes/statistics`
+      if (selectedYear !== 'all' && selectedYear) {
+        url = `${API_URL}/votes/statistics?year=${selectedYear}`
       }
       
-      const response = await axios.get(
-        `${API_URL}/votes/statistics?year=${year}`
-      )
+      const response = await axios.get(url)
       setStatistics(response.data)
     } catch (err) {
       console.error('Error fetching statistics:', err)

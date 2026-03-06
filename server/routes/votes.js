@@ -96,58 +96,101 @@ router.get('/', async (req, res) => {
  * 
  * Get voting statistics and analytics
  * Returns aggregated data about voting patterns
+ * If no year is specified, returns statistics for all years
  */
 router.get('/statistics', async (req, res) => {
   try {
-    const { year = new Date().getFullYear() } = req.query;
+    const { year } = req.query;
+    const hasYearFilter = year && year !== 'all';
 
-    // Overall statistics
-    const overallQuery = `
-      SELECT 
-        COUNT(*) as total_votes,
-        COUNT(*) FILTER (WHERE result = 'passed') as passed_count,
-        COUNT(*) FILTER (WHERE result = 'rejected') as rejected_count,
-        COUNT(*) FILTER (WHERE result = 'postponed') as postponed_count,
-        ROUND(AVG(vote_yes + vote_no + vote_abstain), 2) as avg_participation
-      FROM council_votes
-      WHERE EXTRACT(YEAR FROM session_date) = $1
-    `;
+    let overallQuery, monthlyQuery, participationQuery;
+    
+    if (hasYearFilter) {
+      // Filter by specific year
+      overallQuery = `
+        SELECT 
+          COUNT(*) as total_votes,
+          COUNT(*) FILTER (WHERE result = 'passed') as passed_count,
+          COUNT(*) FILTER (WHERE result = 'rejected') as rejected_count,
+          COUNT(*) FILTER (WHERE result = 'postponed') as postponed_count,
+          ROUND(AVG(vote_yes + vote_no + vote_abstain), 2) as avg_participation
+        FROM council_votes
+        WHERE EXTRACT(YEAR FROM session_date) = $1
+      `;
 
-    const overallResult = await pool.query(overallQuery, [parseInt(year)]);
+      monthlyQuery = `
+        SELECT 
+          EXTRACT(MONTH FROM session_date) as month,
+          COUNT(*) as vote_count,
+          COUNT(*) FILTER (WHERE result = 'passed') as passed,
+          COUNT(*) FILTER (WHERE result = 'rejected') as rejected
+        FROM council_votes
+        WHERE EXTRACT(YEAR FROM session_date) = $1
+        GROUP BY EXTRACT(MONTH FROM session_date)
+        ORDER BY month
+      `;
 
-    // Monthly breakdown
-    const monthlyQuery = `
-      SELECT 
-        EXTRACT(MONTH FROM session_date) as month,
-        COUNT(*) as vote_count,
-        COUNT(*) FILTER (WHERE result = 'passed') as passed,
-        COUNT(*) FILTER (WHERE result = 'rejected') as rejected
-      FROM council_votes
-      WHERE EXTRACT(YEAR FROM session_date) = $1
-      GROUP BY EXTRACT(MONTH FROM session_date)
-      ORDER BY month
-    `;
+      participationQuery = `
+        SELECT 
+          session_date,
+          (vote_yes + vote_no + vote_abstain) as total_participation,
+          vote_yes,
+          vote_no,
+          vote_abstain
+        FROM council_votes
+        WHERE EXTRACT(YEAR FROM session_date) = $1
+        ORDER BY session_date
+      `;
+    } else {
+      // Get all-time statistics (no year filter)
+      overallQuery = `
+        SELECT 
+          COUNT(*) as total_votes,
+          COUNT(*) FILTER (WHERE result = 'passed') as passed_count,
+          COUNT(*) FILTER (WHERE result = 'rejected') as rejected_count,
+          COUNT(*) FILTER (WHERE result = 'postponed') as postponed_count,
+          ROUND(AVG(vote_yes + vote_no + vote_abstain), 2) as avg_participation
+        FROM council_votes
+      `;
 
-    const monthlyResult = await pool.query(monthlyQuery, [parseInt(year)]);
+      monthlyQuery = `
+        SELECT 
+          EXTRACT(MONTH FROM session_date) as month,
+          COUNT(*) as vote_count,
+          COUNT(*) FILTER (WHERE result = 'passed') as passed,
+          COUNT(*) FILTER (WHERE result = 'rejected') as rejected
+        FROM council_votes
+        GROUP BY EXTRACT(MONTH FROM session_date)
+        ORDER BY month
+      `;
 
-    // Participation trends
-    const participationQuery = `
-      SELECT 
-        session_date,
-        (vote_yes + vote_no + vote_abstain) as total_participation,
-        vote_yes,
-        vote_no,
-        vote_abstain
-      FROM council_votes
-      WHERE EXTRACT(YEAR FROM session_date) = $1
-      ORDER BY session_date
-    `;
+      participationQuery = `
+        SELECT 
+          session_date,
+          (vote_yes + vote_no + vote_abstain) as total_participation,
+          vote_yes,
+          vote_no,
+          vote_abstain
+        FROM council_votes
+        ORDER BY session_date
+      `;
+    }
 
-    const participationResult = await pool.query(participationQuery, [parseInt(year)]);
+    let overallResult, monthlyResult, participationResult;
+    
+    if (hasYearFilter) {
+      overallResult = await pool.query(overallQuery, [parseInt(year)]);
+      monthlyResult = await pool.query(monthlyQuery, [parseInt(year)]);
+      participationResult = await pool.query(participationQuery, [parseInt(year)]);
+    } else {
+      overallResult = await pool.query(overallQuery);
+      monthlyResult = await pool.query(monthlyQuery);
+      participationResult = await pool.query(participationQuery);
+    }
 
     res.json({
       success: true,
-      year: parseInt(year),
+      year: hasYearFilter ? parseInt(year) : 'all',
       overall: overallResult.rows[0],
       monthlyBreakdown: monthlyResult.rows,
       participationTrends: participationResult.rows

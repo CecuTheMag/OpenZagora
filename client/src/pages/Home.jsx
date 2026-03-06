@@ -48,7 +48,7 @@ function Home() {
       // Fetch budget summary
       const budgetRes = await axios.get(`${API_URL}/budget/summary`)
       
-      // Fetch votes statistics
+      // Fetch votes statistics (all-time)
       const votesRes = await axios.get(`${API_URL}/votes/statistics`)
 
       // Calculate project statistics

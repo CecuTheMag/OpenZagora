@@ -11,7 +11,7 @@ const path = require('path');
 require('dotenv').config();
 
 // Import database pool and test connection
-const { testConnection } = require('./db/pool');
+const { testConnection, initSchema } = require('./db/pool');
 
 // Import route handlers
 const uploadRoutes = require('./routes/upload');
@@ -115,7 +115,17 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
   // Test database connection before starting server
-  await testConnection();
+  const dbConnected = await testConnection();
+  if (!dbConnected) {
+    console.error('❌ Failed to connect to database. Exiting...');
+    process.exit(1);
+  }
+  
+  // Initialize database schema if needed
+  const schemaInitialized = await initSchema();
+  if (!schemaInitialized) {
+    console.error('⚠️ Warning: Failed to initialize database schema. Some features may not work.');
+  }
   
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
