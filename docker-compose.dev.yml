@@ -1,0 +1,170 @@
+# Open Zagora - Development Docker Compose
+# Use this for development with hot reloading
+
+services:
+  # PostgreSQL Database
+  db:
+    image: docker.io/postgis/postgis:15-3.4-alpine
+    container_name: open-zagora-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: open_zagora
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./server/db/budget_schema.sql:/docker-entrypoint-initdb.d/02-budget-schema.sql:ro
+      - ./server/db/data_pipeline_schema.sql:/docker-entrypoint-initdb.d/03-data-pipeline-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d open_zagora"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - open-zagora-dev-network
+
+  # Backend API Server (Development with hot reload)
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-server-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: open_zagora
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CLIENT_URL: http://localhost:5173
+    volumes:
+      - uploads_data_dev:/app/uploads
+      - parsed_data_dev:/app/parsed
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - open-zagora-dev-network
+
+  # Frontend React App (Development with hot reload)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-client-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: /api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+    networks:
+      - open-zagora-dev-network
+
+  # ==========================================
+  # ADMIN SYSTEM (COMPLETELY SEPARATE)
+  # ==========================================
+
+  # Admin PostgreSQL Database (Separate from main DB)
+  admin-db:
+    image: postgres:15-alpine
+    container_name: open-zagora-admin-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openzagora_admin
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: admin_pass
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - admin_postgres_data_dev:/var/lib/postgresql/data
+      - ./admin-server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user -d openzagora_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - open-zagora-dev-network
+
+  # Admin Backend API Server (Development with hot reload)
+  admin-server:
+    build:
+      context: ./admin-server
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-admin-server-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      ADMIN_PORT: 5001
+      JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars-long
+      JWT_EXPIRES_IN: 24h
+      ADMIN_CLIENT_URL: http://localhost:5174
+      ADMIN_DB_HOST: admin-db
+      ADMIN_DB_PORT: 5432
+      ADMIN_DB_NAME: openzagora_admin
+      ADMIN_DB_USER: admin_user
+      ADMIN_DB_PASSWORD: admin_pass
+      MAIN_DB_HOST: db
+      MAIN_DB_PORT: 5432
+      MAIN_DB_NAME: open_zagora
+      MAIN_DB_USER: postgres
+      MAIN_DB_PASSWORD: postgres
+    volumes:
+      - admin_uploads_data_dev:/app/uploads
+      - admin_parsed_data_dev:/app/parsed
+    ports:
+      - "5001:5001"
+    depends_on:
+      admin-db:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - open-zagora-dev-network
+
+  # Admin Frontend React App (Development with hot reload)
+  admin-client:
+    build:
+      context: ./admin-client
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-admin-client-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5001
+    ports:
+      - "5174:5174"
+    depends_on:
+      - admin-server
+    networks:
+      - open-zagora-dev-network
+
+# Named volumes for data persistence
+volumes:
+  postgres_data_dev:
+    driver: local
+  uploads_data_dev:
+    driver: local
+  parsed_data_dev:
+    driver: local
+  admin_postgres_data_dev:
+    driver: local
+  admin_uploads_data_dev:
+    driver: local
+  admin_parsed_data_dev:
+    driver: local
+
+# Network for service communication
+networks:
+  open-zagora-dev-network:
+    driver: bridge

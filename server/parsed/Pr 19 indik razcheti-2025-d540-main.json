@@ -1,0 +1,53 @@
+{
+  "filename": "Pr 19 indik razcheti-2025-d540.pdf",
+  "year": 2025,
+  "type": "income",
+  "itemsFound": 7,
+  "items": [
+    {
+      "code": "63-00",
+      "name": "Други ЕС трансфери",
+      "amount": 7264,
+      "year": 2025
+    },
+    {
+      "code": "76-00",
+      "name": "Заеми за ЕС",
+      "amount": 500,
+      "year": 2025
+    },
+    {
+      "code": "95-00",
+      "name": "Депозити",
+      "amount": 9411,
+      "year": 2025
+    },
+    {
+      "code": "02-00",
+      "name": "Данъци върху печалбата",
+      "amount": 108,
+      "year": 2025
+    },
+    {
+      "code": "05-00",
+      "name": "Акцизи",
+      "amount": 60010,
+      "year": 2025
+    },
+    {
+      "code": "10-00",
+      "name": "Глоби и санкции",
+      "amount": 800918,
+      "year": 2025
+    },
+    {
+      "code": "51-54",
+      "name": "Код 51-54",
+      "amount": 2675,
+      "year": 2025
+    }
+  ],
+  "textLength": 2242,
+  "numpages": 1,
+  "parsedAt": "2026-02-28T16:06:05.883Z"
+}

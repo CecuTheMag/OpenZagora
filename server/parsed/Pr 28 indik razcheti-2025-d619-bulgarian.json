@@ -1,0 +1,36 @@
+{
+  "filename": "Pr 28 indik razcheti-2025-d619.pdf",
+  "year": 2025,
+  "type": "expense",
+  "itemsFound": 2,
+  "items": [
+    {
+      "function_code": "63",
+      "function_name": "Функция 63",
+      "program_code": "001",
+      "program_name": "Функция 63",
+      "amount": 188826188826,
+      "sourceAmounts": [
+        188826,
+        188826,
+        188826188826
+      ]
+    },
+    {
+      "function_code": "76",
+      "function_name": "Функция 76",
+      "program_code": "001",
+      "program_name": "Функция 76",
+      "amount": 188826188826,
+      "sourceAmounts": [
+        188826,
+        188826,
+        188826188826
+      ]
+    }
+  ],
+  "totalTextItems": 122,
+  "rowCount": 56,
+  "pageCount": 1,
+  "parsedAt": "2026-02-28T16:40:17.304Z"
+}

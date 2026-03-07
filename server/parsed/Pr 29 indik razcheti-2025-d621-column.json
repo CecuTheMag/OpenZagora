@@ -1,0 +1,49 @@
+{
+  "filename": "Pr 29 indik razcheti-2025-d621.pdf",
+  "year": 2025,
+  "type": "expense",
+  "itemsFound": 6,
+  "items": [
+    {
+      "function_code": "62",
+      "function_name": "Функция 62-00",
+      "amount": 373406
+    },
+    {
+      "function_code": "76",
+      "function_name": "Функция 76-00",
+      "amount": 560109
+    },
+    {
+      "function_code": "02",
+      "function_name": "Отбрана и сигурност",
+      "amount": 30000
+    },
+    {
+      "function_code": "05",
+      "function_name": "Социално подпомагане",
+      "amount": 3000
+    },
+    {
+      "function_code": "10",
+      "function_name": "Икономически дейности",
+      "amount": 600
+    },
+    {
+      "function_code": "51",
+      "function_name": "Функция 51",
+      "amount": 526509
+    }
+  ],
+  "columns": [
+    28,
+    127,
+    269,
+    320,
+    476
+  ],
+  "totalTextItems": 132,
+  "rowCount": 56,
+  "pageCount": 1,
+  "parsedAt": "2026-02-28T16:48:51.336Z"
+}

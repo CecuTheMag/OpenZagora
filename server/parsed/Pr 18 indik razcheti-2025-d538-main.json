@@ -1,0 +1,29 @@
+{
+  "filename": "Pr 18 indik razcheti-2025-d538.pdf",
+  "year": 2025,
+  "type": "income",
+  "itemsFound": 3,
+  "items": [
+    {
+      "code": "63-00",
+      "name": "Други ЕС трансфери",
+      "amount": 800193,
+      "year": 2025
+    },
+    {
+      "code": "95-00",
+      "name": "Депозити",
+      "amount": 2652,
+      "year": 2025
+    },
+    {
+      "code": "01-00",
+      "name": "Данъци върху доходите",
+      "amount": 65143,
+      "year": 2025
+    }
+  ],
+  "textLength": 2057,
+  "numpages": 1,
+  "parsedAt": "2026-02-28T16:06:05.872Z"
+}

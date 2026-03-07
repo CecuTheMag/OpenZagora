@@ -1,0 +1,69 @@
+{
+  "filename": "Pr 18 indik razcheti-2025-d538.pdf",
+  "year": 2025,
+  "classification": {
+    "type": "indicator",
+    "subtype": "d538",
+    "table": "budget_indicators"
+  },
+  "itemsFound": 5,
+  "items": [
+    {
+      "indicator_code": "d538",
+      "indicator_name": "Култура",
+      "department_code": "193",
+      "department_name": "Department 193",
+      "amount_approved": 800193,
+      "amount_executed": 0,
+      "amount_remaining": 800193,
+      "percentage_executed": 0,
+      "year": 2025
+    },
+    {
+      "indicator_code": "d538",
+      "indicator_name": "Култура",
+      "department_code": "193",
+      "department_name": "Department 193",
+      "amount_approved": 800193,
+      "amount_executed": 0,
+      "amount_remaining": 800193,
+      "percentage_executed": 0,
+      "year": 2025
+    },
+    {
+      "indicator_code": "d538",
+      "indicator_name": "Култура",
+      "department_code": "196",
+      "department_name": "Department 196",
+      "amount_approved": 65196,
+      "amount_executed": 0,
+      "amount_remaining": 65196,
+      "percentage_executed": 0,
+      "year": 2025
+    },
+    {
+      "indicator_code": "d538",
+      "indicator_name": "Култура",
+      "department_code": "143",
+      "department_name": "Department 143",
+      "amount_approved": 65143,
+      "amount_executed": 0,
+      "amount_remaining": 65143,
+      "percentage_executed": 0,
+      "year": 2025
+    },
+    {
+      "indicator_code": "d538",
+      "indicator_name": "Култура",
+      "department_code": "196",
+      "department_name": "Department 196",
+      "amount_approved": 65196,
+      "amount_executed": 0,
+      "amount_remaining": 65196,
+      "percentage_executed": 0,
+      "year": 2025
+    }
+  ],
+  "textLength": 2057,
+  "parsedAt": "2026-02-28T16:04:18.986Z"
+}
