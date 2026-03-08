@@ -62,7 +62,7 @@ router.post('/run', async (req, res) => {
         const { type = 'full' } = req.body;
         
         // Validate type
-        const validTypes = ['osm', 'eop', 'egov', 'full', 'geocode'];
+        const validTypes = ['osm', 'eop', 'tenders', 'egov', 'full', 'geocode'];
         if (!validTypes.includes(type)) {
             return res.status(400).json({
                 error: 'Invalid scraper type',

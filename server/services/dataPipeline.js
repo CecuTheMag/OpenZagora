@@ -9,6 +9,7 @@ const eopScraper = require('./eopScraper');
 const egovApiClient = require('./egovApiClient');
 const geocoderService = require('./geocoderService');
 const dbService = require('./dbService');
+const tenderParser = require('./tenderParser');
 
 class DataPipeline {
     constructor() {
@@ -53,7 +54,13 @@ class DataPipeline {
             this.fetchOsmData();
         });
 
-        // Run EOP scraper every hour
+        // Run EOP scraper from Python script every 24 hours
+        this.jobs.tenders = cron.schedule('0 2 * * *', () => {
+            console.log('⏰ Running scheduled tender fetch (Python script)...');
+            this.fetchTendersFromPython();
+        });
+
+        // Run EOP scraper every hour (legacy/API based)
         this.jobs.eop = cron.schedule('0 * * * *', () => {
             console.log('⏰ Running scheduled EOP scraper...');
             this.fetchEopData();
@@ -72,6 +79,7 @@ class DataPipeline {
         });
 
         console.log('📅 Scheduled jobs started:');
+        console.log('   - Tenders (Python): Every 24 hours at 2:00 AM');
         console.log('   - OSM: Every 6 hours');
         console.log('   - EOP: Every hour');
         console.log('   - E-gov: Every 2 hours');
@@ -227,6 +235,38 @@ class DataPipeline {
     }
 
     /**
+     * Fetch tenders from Python script (runs every 24 hours)
+     */
+    async fetchTendersFromPython() {
+        const startTime = Date.now();
+        
+        try {
+            console.log('📥 Fetching tenders from Python script...');
+            
+            // Use the tender parser service
+            const result = await tenderParser.fetchAndStoreTenders();
+            
+            const duration = Math.round((Date.now() - startTime) / 1000);
+            
+            // Log the run
+            await dbService.logScraperRun('tenders', 'success', result.total, result.added, result.updated, 
+                result.total - result.infrastructure, null, duration);
+            await dbService.updateDataSourceFetchTime('ЦАИС ЕОП');
+            
+            console.log(`✅ Tender fetch complete: ${result.total} raw, ${result.infrastructure} infrastructure, ` +
+                `${result.geocoded} geocoded, ${result.added} added in ${duration}s`);
+            
+            return { type: 'tenders', ...result, duration };
+        } catch (error) {
+            const duration = Math.round((Date.now() - startTime) / 1000);
+            console.error('❌ Tender fetch error:', error.message);
+            await dbService.logScraperRun('tenders', 'failed', 0, 0, 0, 0, error.message, duration);
+            
+            return { type: 'tenders', error: error.message, duration };
+        }
+    }
+
+    /**
      * Fetch E-gov data from data.egov.bg
      */
     async fetchEgovData() {
@@ -320,6 +360,8 @@ class DataPipeline {
                 return await this.fetchOsmData();
             case 'eop':
                 return await this.fetchEopData();
+            case 'tenders':
+                return await this.fetchTendersFromPython();
             case 'egov':
                 return await this.fetchEgovData();
             case 'full':

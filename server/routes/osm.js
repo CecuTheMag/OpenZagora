@@ -209,10 +209,15 @@ router.get('/', async (req, res) => {
  * 
  * Get all projects from all sources for map display
  * This is the main endpoint for the map page
+ * 
+ * Query params:
+ *   - limit: max number of results (default 1000)
+ *   - infrastructure: only show infrastructure tenders (default true)
  */
 router.get('/unified/map', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 1000;
+        const showInfrastructureOnly = req.query.infrastructure !== 'false';
         
         // Get data from all sources
         const [osmData, eopData] = await Promise.all([
@@ -223,25 +228,62 @@ router.get('/unified/map', async (req, res) => {
         // Transform to map markers
         const markers = [];
         
-        // Add EOP projects (public procurement)
-        eopData.forEach(item => {
-            if (item.lat && item.lng) {
-                markers.push({
-                    id: item.id,
-                    source: 'eop',
-                    title: item.title,
-                    description: item.description,
-                    status: item.status,
-                    budget: item.budget,
-                    contractor: item.contractor,
-                    lat: parseFloat(item.lat),
-                    lng: parseFloat(item.lng),
-                    address: item.address,
-                    url: item.source_url,
-                    color: item.status === 'completed' ? '#22c55e' : 
-                           item.status === 'active' ? '#3b82f6' : '#f59e0b'
-                });
+        // Infrastructure keywords for filtering tenders
+        const infraKeywords = [
+            'смр', 'строителств', 'ремонт', 'реконструкц', 'модернизац', 'изграждане',
+            'енергийн', 'топлоизолац', 'инфраструктур', 'път', 'улиц', 'мост',
+            'канализац', 'водоснабдяван', 'осветлен', 'паркинг', 'благоустройств',
+            'училище', 'болница', 'детска', 'ясла', 'социалн', 'култур', 'музей',
+            'театър', 'спортн', 'библиотек', 'парк', 'озеленяв', 'сграда', 'жилищн',
+            'покрив', 'фасад', 'дограм', 'европейск', 'инженеринг', 'проектиран'
+        ];
+        
+        const excludeKeywords = [
+            'хранителн', 'продукт', 'хранене', 'облекло', 'униформа', 'канцеларск',
+            'мебели', 'застраховк', 'ветеринар', 'охрана', 'почистван'
+        ];
+        
+        // Helper to check if tender is infrastructure-related
+        const isInfrastructure = (text) => {
+            const lower = text.toLowerCase();
+            // Check excludes first
+            for (const ex of excludeKeywords) {
+                if (lower.includes(ex)) return false;
             }
+            // Check includes
+            for (const kw of infraKeywords) {
+                if (lower.includes(kw)) return true;
+            }
+            return false;
+        };
+        
+        // Add EOP projects (public procurement) - filter for infrastructure
+        eopData.forEach(item => {
+            if (!item.lat || !item.lng) return;
+            
+            const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
+            
+            // If infrastructure filtering is on, skip non-infrastructure
+            if (showInfrastructureOnly && !isInfrastructure(text)) {
+                return;
+            }
+            
+            markers.push({
+                id: item.id,
+                source: 'eop',
+                title: item.title,
+                description: item.description,
+                status: item.status,
+                budget: item.budget,
+                contractor: item.contractor,
+                lat: parseFloat(item.lat),
+                lng: parseFloat(item.lng),
+                address: item.address,
+                url: item.source_url,
+                isInfrastructure: isInfrastructure(text),
+                color: item.status === 'completed' ? '#22c55e' : 
+                       item.status === 'active' ? '#3b82f6' : '#f59e0b'
+            });
         });
         
         // Add OSM points of interest (only important ones)
@@ -270,12 +312,23 @@ router.get('/unified/map', async (req, res) => {
                 });
             });
         
+        // Calculate stats
+        const eopInfra = markers.filter(m => m.source === 'eop' && m.isInfrastructure).length;
+        const eopOther = markers.filter(m => m.source === 'eop' && !m.isInfrastructure).length;
+        
         res.json({
             success: true,
             total: markers.length,
             sources: {
-                eop: eopData.length,
+                eop: {
+                    total: eopData.filter(e => e.lat && e.lng).length,
+                    infrastructure: eopInfra,
+                    other: eopOther
+                },
                 osm: osmData.filter(item => importantTypes.includes(item.data_type)).length
+            },
+            filters: {
+                infrastructureOnly: showInfrastructureOnly
             },
             data: markers
         });
