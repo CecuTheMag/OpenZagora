@@ -258,8 +258,14 @@ router.get('/unified/map', async (req, res) => {
         };
         
         // Add EOP projects (public procurement) - filter for infrastructure
+        // Default coordinates for Stara Zagora (used when tender has no geolocation)
+        const defaultLat = 42.4257;
+        const defaultLng = 25.6344;
+        
         eopData.forEach(item => {
-            if (!item.lat || !item.lng) return;
+            // Use default coordinates if lat/lng is missing
+            const lat = item.lat ? parseFloat(item.lat) : defaultLat;
+            const lng = item.lng ? parseFloat(item.lng) : defaultLng;
             
             const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
             
@@ -276,11 +282,12 @@ router.get('/unified/map', async (req, res) => {
                 status: item.status,
                 budget: item.budget,
                 contractor: item.contractor,
-                lat: parseFloat(item.lat),
-                lng: parseFloat(item.lng),
+                lat: lat,
+                lng: lng,
                 address: item.address,
                 url: item.source_url,
                 isInfrastructure: isInfrastructure(text),
+                hasCoordinates: !!item.lat && !!item.lng,
                 color: item.status === 'completed' ? '#22c55e' : 
                        item.status === 'active' ? '#3b82f6' : '#f59e0b'
             });

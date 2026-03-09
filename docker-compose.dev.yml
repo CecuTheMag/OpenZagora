@@ -46,6 +46,7 @@ services:
     volumes:
       - uploads_data_dev:/app/uploads
       - parsed_data_dev:/app/parsed
+      - ./:/app/root
     ports:
       - "5000:5000"
     depends_on:

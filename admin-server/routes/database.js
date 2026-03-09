@@ -240,6 +240,34 @@ const tableConfigs = {
     ],
     displayName: 'Citizen Votes',
     description: 'Public opinion votes on projects'
+  },
+  eop_data: {
+    tableName: 'eop_data',
+    columns: [
+      { name: 'eop_id', type: 'varchar(100)', required: false, editable: true },
+      { name: 'source_url', type: 'text', required: false, editable: true },
+      { name: 'title', type: 'varchar(1000)', required: false, editable: true },
+      { name: 'description', type: 'text', required: false, editable: true },
+      { name: 'status', type: 'varchar(50)', required: false, editable: true },
+      { name: 'budget', type: 'decimal(15,2)', required: false, editable: true },
+      { name: 'currency', type: 'varchar(3)', required: false, editable: true },
+      { name: 'contractor', type: 'varchar(500)', required: false, editable: true },
+      { name: 'contract_number', type: 'varchar(100)', required: false, editable: true },
+      { name: 'awarding_type', type: 'varchar(100)', required: false, editable: true },
+      { name: 'procurement_type', type: 'varchar(100)', required: false, editable: true },
+      { name: 'cpv_code', type: 'varchar(20)', required: false, editable: true },
+      { name: 'address', type: 'varchar(500)', required: false, editable: true },
+      { name: 'settlement', type: 'varchar(100)', required: false, editable: true },
+      { name: 'municipality', type: 'varchar(100)', required: false, editable: true },
+      { name: 'lat', type: 'decimal(10,8)', required: false, editable: true },
+      { name: 'lng', type: 'decimal(11,8)', required: false, editable: true },
+      { name: 'start_date', type: 'date', required: false, editable: true },
+      { name: 'end_date', type: 'date', required: false, editable: true },
+      { name: 'publication_date', type: 'date', required: false, editable: true },
+      { name: 'raw_data', type: 'jsonb', required: false, editable: true }
+    ],
+    displayName: 'EOP Tenders',
+    description: 'Public procurement data from eop.bg'
   }
 };
 
@@ -360,7 +388,7 @@ router.post('/clear', async (req, res) => {
     const tablesToClear = [
       'citizen_votes', 'budget_forecasts', 'budget_villages', 'budget_loans',
       'budget_indicators', 'budget_expenses', 'budget_income', 'budget_documents',
-      'council_votes', 'budget_items', 'projects', 'budget_summary'
+      'council_votes', 'budget_items', 'projects', 'budget_summary', 'eop_data'
     ];
 
     const deletedCounts = {};

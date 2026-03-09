@@ -189,8 +189,8 @@ function processTenders(tenders) {
  */
 async function runPythonScript() {
   return new Promise((resolve, reject) => {
-    const pythonScript = path.join(__dirname, '../../fetch_tenders.py');
-    const jsonFile = path.join(__dirname, '../../tenders_stara_zagora.json');
+    const pythonScript = path.join(__dirname, '../../root/fetch_tenders.py');
+    const jsonFile = path.join(__dirname, '../../root/tenders_stara_zagora.json');
     
     // First check if JSON file already exists and is recent
     try {
@@ -210,7 +210,7 @@ async function runPythonScript() {
     console.log('🐍 Running Python script to fetch tenders...');
     
     const python = spawn('python3', [pythonScript], {
-      cwd: path.join(__dirname, '../..')
+      cwd: path.join(__dirname, '../../root')
     });
     
     let stdout = '';

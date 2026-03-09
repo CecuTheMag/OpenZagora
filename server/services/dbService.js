@@ -283,13 +283,12 @@ class DbService {
     }
 
     /**
-     * Get EOP data
+     * Get EOP data (all tenders, with or without coordinates)
      */
     async getEopData(limit = 500) {
         try {
             const result = await pool.query(
                 `SELECT * FROM eop_data 
-                 WHERE lat IS NOT NULL AND lng IS NOT NULL
                  ORDER BY publication_date DESC LIMIT $1`,
                 [limit]
             );

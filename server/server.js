@@ -21,6 +21,7 @@ const voteRoutes = require('./routes/votes');
 const fileRoutes = require('./routes/files');
 const scraperRoutes = require('./routes/scraper');
 const osmRoutes = require('./routes/osm');
+const eopRoutes = require('./routes/eop');
 
 // Initialize Express application
 const app = express();
@@ -91,6 +92,7 @@ app.use('/api/votes', voteRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/osm', osmRoutes);
+app.use('/api/eop', eopRoutes);
 
 // ==========================================
 // ERROR HANDLING

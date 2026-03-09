@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Install poppler-utils for pdftotext and python3 for tender scraper
+RUN apk add --no-cache poppler-utils python3 py3-pip
+
 WORKDIR /app
 
 COPY package*.json ./

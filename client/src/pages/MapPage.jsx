@@ -284,24 +284,22 @@ function MapPage() {
   const triggerDataFetch = async () => {
     try {
       setIsFetching(true)
-      console.log('Triggering manual data fetch...')
+      console.log('Triggering EOP data fetch and import...')
       
-      // First check debug info
-      try {
-        const debugRes = await axios.get(`${API_URL}/osm/debug`)
-        console.log('Debug info:', debugRes.data)
-        alert(`Current DB state:\nOSM: ${debugRes.data.counts.osm} records\nEOP: ${debugRes.data.counts.eop} records\n\nStarting data fetch...`)
-      } catch (e) {
-        console.error('Debug check failed:', e)
+      // Call the new EOP fetch-and-import endpoint
+      const response = await axios.post(`${API_URL}/eop/fetch-and-import`)
+      console.log('EOP fetch completed:', response.data)
+      
+      if (response.data.success) {
+        const { fetch, import: importData } = response.data.data
+        alert(`EOP Data Updated Successfully!\n\nFetched: ${fetch.total} tenders\nImported: ${importData.imported} new\nUpdated: ${importData.updated} existing\n\nRefreshing map...`)
+        setTimeout(() => fetchData(true), 2000)
+      } else {
+        throw new Error('Fetch operation failed')
       }
-      
-      const response = await axios.post(`${API_URL}/scraper/run`, { type: 'full' })
-      console.log('Fetch triggered:', response.data)
-      alert('Data fetch completed! Check console for details. Refreshing map in 5 seconds...')
-      setTimeout(() => fetchData(true), 5000)
     } catch (error) {
-      console.error('Error triggering fetch:', error)
-      alert('Failed to trigger data fetch: ' + (error.response?.data?.message || error.message))
+      console.error('Error triggering EOP fetch:', error)
+      alert('Failed to fetch EOP data: ' + (error.response?.data?.message || error.message))
     } finally {
       setIsFetching(false)
     }
