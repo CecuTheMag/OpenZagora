@@ -291,8 +291,8 @@ function MapPage() {
       console.log('EOP fetch completed:', response.data)
       
       if (response.data.success) {
-        const { fetch, import: importData } = response.data.data
-        alert(`EOP Data Updated Successfully!\n\nFetched: ${fetch.total} tenders\nImported: ${importData.imported} new\nUpdated: ${importData.updated} existing\n\nRefreshing map...`)
+        const { fetch, import: importData, geocode } = response.data.data
+        alert(`EOP Data Updated Successfully!\n\nFetched: ${fetch.total} tenders\nImported: ${importData.imported} new\nUpdated: ${importData.updated} existing\nGeocode: ${geocode.updated} located\n\nRefreshing map...`)
         setTimeout(() => fetchData(true), 2000)
       } else {
         throw new Error('Fetch operation failed')

@@ -7,6 +7,10 @@ const express = require('express');
 const router = express.Router();
 const eopFetcher = require('../services/eopDataFetcher');
 const eopImporter = require('../services/eopDataImporter');
+const eopGeocoder = require('../services/eopGeocoder');
+const eopAIGeocoder = require('../services/eopAIGeocoder');
+const eopExactGeocoder = require('../services/eopExactGeocoder');
+const eopHybridGeocoder = require('../services/eopHybridGeocoder');
 
 /**
  * GET /api/eop/status
@@ -122,6 +126,50 @@ router.post('/import', async (req, res) => {
 });
 
 /**
+ * POST /api/eop/geocode
+ * Add coordinates to EOP records using geocoding
+ */
+router.post('/geocode', async (req, res) => {
+  try {
+    const { method = 'district', limit = 50 } = req.body;
+    
+    console.log(`🗺️ Starting EOP geocoding (${method})...`);
+    
+    let updated;
+    if (method === 'hybrid') {
+      updated = await eopHybridGeocoder.geocodeAll();
+    } else if (method === 'exact') {
+      updated = await eopExactGeocoder.geocodeAll();
+    } else if (method === 'ai') {
+      updated = await eopAIGeocoder.geocodeAll();
+    } else if (method === 'district') {
+      const eopDistrictMapper = require('../services/eopDistrictMapper');
+      updated = await eopDistrictMapper.mapToDistricts();
+    } else {
+      updated = await eopGeocoder.geocodeEOPRecords(limit);
+    }
+    
+    res.json({
+      success: true,
+      message: `Geocoded ${updated} EOP records`,
+      data: {
+        method,
+        updated,
+        geocodedAt: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ EOP geocoding failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to geocode EOP data',
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /api/eop/fetch-and-import
  * Fetch from API and immediately import to database
  */
@@ -145,9 +193,14 @@ router.post('/fetch-and-import', async (req, res) => {
       throw new Error('Failed to import data to database');
     }
     
+    // Step 3: Hybrid geocoding (exact -> location -> AI)
+    console.log('Step 3: Hybrid geocoding...');
+    const geocodeResult = await eopHybridGeocoder.geocodeAll();
+    const geocodeCount = geocodeResult.updated || geocodeResult;
+    
     res.json({
       success: true,
-      message: 'EOP data fetched and imported successfully',
+      message: 'EOP data fetched, imported and geocoded successfully',
       data: {
         fetch: {
           total: fetchResult.total,
@@ -158,6 +211,9 @@ router.post('/fetch-and-import', async (req, res) => {
           imported: importResult.imported,
           updated: importResult.updated,
           skipped: importResult.skipped
+        },
+        geocode: {
+          updated: geocodeCount
         },
         completedAt: new Date().toISOString()
       }
