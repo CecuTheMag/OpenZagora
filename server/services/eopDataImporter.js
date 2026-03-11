@@ -302,6 +302,25 @@ class EOPDataImporter {
    */
   async getStats() {
     try {
+      // Check if table exists first
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'eop_data'
+        ) as exists
+      `);
+      
+      if (!tableCheck.rows[0].exists) {
+        return {
+          total: '0',
+          active: '0',
+          completed: '0',
+          earliest_date: null,
+          latest_date: null
+        };
+      }
+
       const result = await pool.query(`
         SELECT 
           COUNT(*) as total,
@@ -316,7 +335,14 @@ class EOPDataImporter {
       return result.rows[0];
     } catch (error) {
       console.error('❌ Error getting EOP stats:', error);
-      throw error;
+      // Return default stats instead of throwing
+      return {
+        total: '0',
+        active: '0',
+        completed: '0',
+        earliest_date: null,
+        latest_date: null
+      };
     }
   }
 }

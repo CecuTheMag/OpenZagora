@@ -3,7 +3,9 @@
  * API endpoints for fetching and managing EOP tender data
  */
 
+
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const eopFetcher = require('../services/eopDataFetcher');
 const eopImporter = require('../services/eopDataImporter');
@@ -174,12 +176,50 @@ router.post('/geocode', async (req, res) => {
  * Fetch from API and immediately import to database
  */
 router.post('/fetch-and-import', async (req, res) => {
+  const { Pool } = require('pg');
+  const pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'open_zagora',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+  });
+
   try {
     console.log('🚀 Starting full EOP data refresh...');
     
-    // Step 1: Fetch from API
+    // First, verify the eop_data table exists
+    console.log('Verifying database schema...');
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'eop_data'
+      ) as exists
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      throw new Error('Database table "eop_data" does not exist. Please restart the database container with fresh volumes to initialize the schema.');
+    }
+    
+
+    // Step 1: Fetch from API (or use existing JSON if available)
     console.log('Step 1: Fetching from EOP API...');
-    const fetchResult = await eopFetcher.fetchAndSave();
+    
+    // Check if we already have JSON data
+    const existingData = await eopFetcher.getExistingData();
+    let fetchResult;
+    
+    if (existingData && existingData.length > 0) {
+      console.log(`📄 Using existing JSON file with ${existingData.length} records`);
+      fetchResult = {
+        success: true,
+        total: existingData.length,
+        filePath: path.join(__dirname, '../data/tenders_stara_zagora.json')
+      };
+    } else {
+      fetchResult = await eopFetcher.fetchAndSave();
+    }
     
     if (!fetchResult.success) {
       throw new Error('Failed to fetch data from API');
@@ -193,10 +233,26 @@ router.post('/fetch-and-import', async (req, res) => {
       throw new Error('Failed to import data to database');
     }
     
-    // Step 3: Hybrid geocoding (exact -> location -> AI)
-    console.log('Step 3: Hybrid geocoding...');
-    const geocodeResult = await eopHybridGeocoder.geocodeAll();
-    const geocodeCount = geocodeResult.updated || geocodeResult;
+    // Step 3: Hybrid geocoding (only if we have records without coordinates)
+    console.log('Step 3: Checking for records needing geocoding...');
+    let geocodeCount = 0;
+    
+    try {
+      const recordsNeedingGeo = await pool.query(`
+        SELECT COUNT(*) as count FROM eop_data WHERE lat IS NULL OR lng IS NULL
+      `);
+      
+      if (parseInt(recordsNeedingGeo.rows[0].count) > 0) {
+        console.log(`Found ${recordsNeedingGeo.rows[0].count} records needing geocoding...`);
+        const geocodeResult = await eopHybridGeocoder.geocodeAll();
+        geocodeCount = geocodeResult.updated || geocodeResult;
+      } else {
+        console.log('All records already have coordinates, skipping geocoding.');
+      }
+    } catch (geoError) {
+      console.warn('⚠️ Geocoding step skipped:', geoError.message);
+      // Continue even if geocoding fails - it's not critical
+    }
     
     res.json({
       success: true,
@@ -224,8 +280,13 @@ router.post('/fetch-and-import', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch and import EOP data',
-      message: error.message
+      message: error.message,
+      hint: error.message.includes('does not exist') 
+        ? 'The database schema may not be initialized. Try: podman-compose down -v && podman-compose up --build'
+        : null
     });
+  } finally {
+    pool.end();
   }
 });
 

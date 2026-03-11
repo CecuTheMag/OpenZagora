@@ -172,11 +172,26 @@ class EOPHybridGeocoder {
 
   async geocodeAll() {
     try {
+      // Check if table exists first
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'eop_data'
+        ) as exists
+      `);
+      
+      if (!tableCheck.rows[0].exists) {
+        console.log('⚠️ eop_data table does not exist, skipping geocoding');
+        return { updated: 0, exact: 0, locations: 0, ai: 0 };
+      }
+
+      // Get ALL records without coordinates (not just 50!)
       const result = await pool.query(
-        'SELECT id, title, description FROM eop_data WHERE lat IS NULL LIMIT 50'
+        'SELECT id, title, description FROM eop_data WHERE lat IS NULL OR lng IS NULL'
       );
 
-      console.log(`🎯 Hybrid geocoding ${result.rows.length} EOP records...`);
+      console.log(`🎯 Hybrid geocoding up to ${result.rows.length} EOP records...`);
       
       let updated = 0;
       let exact = 0;
@@ -196,7 +211,9 @@ class EOPHybridGeocoder {
         else ai++;
         
         updated++;
-        console.log(`✓ ${location.source}: ${location.address} (${location.confidence.toFixed(2)})`);
+        if (updated % 10 === 0) {
+          console.log(`✓ Processed ${updated}/${result.rows.length} records...`);
+        }
       }
       
       console.log(`✅ Hybrid geocoding completed: ${exact} exact, ${locations} locations, ${ai} AI`);

@@ -6,5 +6,6 @@ README.md
 .env
 .nyc_output
 coverage
-dist/
+uploads/
+parsed/
 *.log

@@ -3,12 +3,22 @@ FROM node:20-alpine
 # Install poppler-utils for pdftotext and python3 for tender scraper
 RUN apk add --no-cache poppler-utils python3 py3-pip
 
+# Use existing node user (UID 1000) instead of creating new one
 WORKDIR /app
 
-COPY package*.json ./
+# Change ownership of app directory to node user
+RUN chown -R node:node /app
+
+# Create upload directories with proper permissions
+RUN mkdir -p /app/uploads /app/parsed && chown -R node:node /app/uploads /app/parsed
+
+# Switch to node user
+USER node
+
+COPY --chown=node:node package*.json ./
 RUN npm install
 
-COPY . .
+COPY --chown=node:node . .
 
 EXPOSE 5000
 

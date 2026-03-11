@@ -6,6 +6,8 @@
 const express = require('express');
 const router = express.Router();
 const dbService = require('../services/dbService');
+const overpassClient = require('../services/overpassClient');
+const { Pool } = require('pg');
 
 /**
  * GET /api/osm/debug
@@ -99,6 +101,110 @@ router.get('/debug', async (req, res) => {
             error: 'Debug failed',
             message: error.message
         });
+    }
+});
+
+/**
+ * POST /api/osm/fetch
+ * Fetch OSM data from Overpass API and save to database
+ * Fetches schools, hospitals, libraries, bus stops for Stara Zagora
+ */
+router.post('/fetch', async (req, res) => {
+    const pool = new Pool({
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432'),
+        database: process.env.DB_NAME || 'open_zagora',
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+    });
+
+    try {
+        console.log('🗺️ Starting OSM data fetch from Overpass API...');
+        
+        // Check if table exists
+        const tableCheck = await pool.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'osm_data'
+            ) as exists
+        `);
+        
+        if (!tableCheck.rows[0].exists) {
+            throw new Error('Database table "osm_data" does not exist. Please restart the database container with fresh volumes to initialize the schema.');
+        }
+        
+        // Fetch all data types
+        const results = await overpassClient.fetchAllData();
+        
+        let totalSaved = 0;
+        
+        // Process each data type
+        const dataTypes = ['schools', 'hospitals', 'libraries', 'busStops'];
+        const typeMap = {
+            schools: 'school',
+            hospitals: 'hospital',
+            libraries: 'library',
+            busStops: 'bus_stop'
+        };
+        
+        for (const dataType of dataTypes) {
+            const items = results[dataType] || [];
+            console.log(`   Processing ${items.length} ${dataType}...`);
+            
+            for (const item of items) {
+                try {
+                    await pool.query(`
+                        INSERT INTO osm_data (osm_id, osm_type, data_type, name, tags, lat, lng, geometry)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                        ON CONFLICT (osm_id, osm_type) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            tags = EXCLUDED.tags,
+                            lat = EXCLUDED.lat,
+                            lng = EXCLUDED.lng,
+                            geometry = EXCLUDED.geometry,
+                            fetched_at = CURRENT_TIMESTAMP
+                    `, [
+                        item.osm_id,
+                        item.osm_type,
+                        typeMap[dataType],
+                        item.name,
+                        JSON.stringify(item.tags),
+                        item.lat,
+                        item.lng,
+                        item.geometry ? JSON.stringify(item.geometry) : null
+                    ]);
+                    totalSaved++;
+                } catch (err) {
+                    // Skip duplicates or errors
+                }
+            }
+        }
+        
+        console.log(`✅ OSM data fetch complete: ${totalSaved} records saved`);
+        
+        res.json({
+            success: true,
+            message: 'OSM data fetched successfully',
+            data: {
+                schools: results.schools?.length || 0,
+                hospitals: results.hospitals?.length || 0,
+                libraries: results.libraries?.length || 0,
+                busStops: results.busStops?.length || 0,
+                totalSaved,
+                fetchedAt: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ OSM fetch failed:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch OSM data',
+            message: error.message
+        });
+    } finally {
+        pool.end();
     }
 });
 
@@ -216,7 +322,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/unified/map', async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 1000;
+        const limit = parseInt(req.query.limit) || 2000;
         const showInfrastructureOnly = req.query.infrastructure !== 'false';
         
         // Get data from all sources
@@ -257,15 +363,19 @@ router.get('/unified/map', async (req, res) => {
             return false;
         };
         
-        // Add EOP projects (public procurement) - filter for infrastructure
         // Default coordinates for Stara Zagora (used when tender has no geolocation)
         const defaultLat = 42.4257;
         const defaultLng = 25.6344;
         
+        // Add EOP projects - show ALL with coordinates, not just exact ones
         eopData.forEach(item => {
-            // Use default coordinates if lat/lng is missing
-            const lat = item.lat ? parseFloat(item.lat) : defaultLat;
-            const lng = item.lng ? parseFloat(item.lng) : defaultLng;
+            // Skip records without coordinates
+            if (!item.lat || !item.lng) {
+                return;
+            }
+            
+            const lat = parseFloat(item.lat);
+            const lng = parseFloat(item.lng);
             
             const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
             
@@ -287,7 +397,6 @@ router.get('/unified/map', async (req, res) => {
                 address: item.address,
                 url: item.source_url,
                 isInfrastructure: isInfrastructure(text),
-                hasCoordinates: !!item.lat && !!item.lng,
                 color: item.status === 'completed' ? '#22c55e' : 
                        item.status === 'active' ? '#3b82f6' : '#f59e0b'
             });
@@ -387,7 +496,7 @@ router.get('/unified/stats', async (req, res) => {
             },
             unified: {
                 totalWithCoords: eopData.filter(e => e.lat && e.lng).length + 
-                                 osmData.filter(o => importantTypes.includes(o.data_type)).length
+                                 osmData.filter(o => importantTypes && importantTypes.includes(o.data_type)).length
             }
         });
     } catch (error) {
@@ -402,4 +511,3 @@ router.get('/unified/stats', async (req, res) => {
 const importantTypes = ['school', 'hospital', 'library', 'bus_stop'];
 
 module.exports = router;
-

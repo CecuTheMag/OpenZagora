@@ -16,6 +16,12 @@ const pool = new Pool({
 
 class EOPExactGeocoder {
   constructor() {
+    // Stara Zagora bounds for validation
+    this.bounds = {
+      minLat: 42.35, maxLat: 42.50,
+      minLng: 25.55, maxLng: 25.75
+    };
+    
     this.addressPatterns = [
       /ул\.?\s*[„"]([^„"]+)[„"]\s*№?\s*(\d+)/gi,
       /улица\s*[„"]([^„"]+)[„"]\s*№?\s*(\d+)/gi,
@@ -35,6 +41,14 @@ class EOPExactGeocoder {
       'пазар': { lat: 42.4250, lng: 25.6320 },
       'автогара': { lat: 42.4280, lng: 25.6380 }
     };
+  }
+
+  /**
+   * Validate coordinates are within Stara Zagora bounds
+   */
+  isWithinBounds(lat, lng) {
+    return lat >= this.bounds.minLat && lat <= this.bounds.maxLat &&
+           lng >= this.bounds.minLng && lng <= this.bounds.maxLng;
   }
 
   extractAddresses(text) {
@@ -81,11 +95,17 @@ class EOPExactGeocoder {
       
       if (response.data && response.data.length > 0) {
         const result = response.data[0];
-        return {
-          lat: parseFloat(result.lat),
-          lng: parseFloat(result.lon),
-          confidence: parseFloat(result.importance) || 0.5
-        };
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        
+        // Validate coordinates are within Stara Zagora bounds
+        if (this.isWithinBounds(lat, lng)) {
+          return {
+            lat: lat,
+            lng: lng,
+            confidence: parseFloat(result.importance) || 0.5
+          };
+        }
       }
     } catch (error) {
       console.log(`Geocoding failed for: ${address.street}`);
