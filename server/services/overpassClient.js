@@ -14,10 +14,10 @@ const OVERPASS_ENDPOINTS = [
     'https://z.overpass-api.de/api/interpreter'
 ];
 
-// Stara Zagora bounding box
+// Stara Zagora bounding box for location queries
 const STARA_ZAGORA_BOUNDS = {
-    south: 42.38,
-    west: 25.55,
+    south: 42.37,
+    west: 25.58,
     north: 42.48,
     east: 25.72
 };

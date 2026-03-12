@@ -122,7 +122,7 @@ class EOPHybridGeocoder {
     };
   }
 
-  async findBestLocation(title, description) {
+
     const text = `${title} ${description || ''}`;
     
     // Step 1: Try exact addresses
@@ -159,8 +159,7 @@ class EOPHybridGeocoder {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    // Step 3: AI categorization fallback
-    const aiResult = this.aiCategorize(text);
+
     return {
       lat: aiResult.lat,
       lng: aiResult.lng,
