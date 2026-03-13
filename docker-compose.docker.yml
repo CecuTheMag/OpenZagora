@@ -1,0 +1,187 @@
+# Open Zagora - Docker Development (Docker-optimized)
+# Identical to dev but Docker daemon compatible (no rootless user)
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgis/postgis:15-3.4-alpine
+    container_name: open-zagora-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: open_zagora
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./server/db/budget_schema.sql:/docker-entrypoint-initdb.d/02-budget-schema.sql:ro
+      - ./server/db/data_pipeline_schema.sql:/docker-entrypoint-initdb.d/03-data-pipeline-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d open_zagora"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - open-zagora-dev-network
+
+  # Backend API Server (Development with hot reload)
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-server-dev
+    restart: unless-stopped
+    # Removed user: "1000:1000" for Docker root containers
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: open_zagora
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CLIENT_URL: http://localhost:5173
+    volumes:
+      - uploads_data_dev:/app/uploads
+      - parsed_data_dev:/app/parsed
+      - ./server/server.js:/app/server.js
+      - ./server/db:/app/db
+      - ./server/routes:/app/routes
+      - ./server/services:/app/services
+      - ./server/scripts:/app/scripts
+      - ./server/uploads:/app/uploads
+      - ./server/parsed:/app/parsed
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - open-zagora-dev-network
+
+  # Frontend React App (Development with hot reload)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-client-dev
+    restart: unless-stopped
+    # Removed user: "1000:1000" 
+    environment:
+      VITE_API_URL: /api
+    volumes:
+      - ./client/index.html:/app/index.html
+      - ./client/vite.config.js:/app/vite.config.js
+      - ./client/package.json:/app/package.json
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+    networks:
+      - open-zagora-dev-network
+
+  # Admin PostgreSQL Database
+  admin-db:
+    image: postgres:15-alpine
+    container_name: open-zagora-admin-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openzagora_admin
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: admin_pass
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - admin_postgres_data_dev:/var/lib/postgresql/data
+      - ./admin-server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user -d openzagora_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - open-zagora-dev-network
+
+  # Admin Backend
+  admin-server:
+    build:
+      context: ./admin-server
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-admin-server-dev
+    restart: unless-stopped
+    # Removed user for Docker
+    environment:
+      NODE_ENV: development
+      ADMIN_PORT: 5001
+      JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars-long
+      JWT_EXPIRES_IN: 24h
+      ADMIN_CLIENT_URL: http://localhost:5174
+      ADMIN_DB_HOST: admin-db
+      ADMIN_DB_PORT: 5432
+      ADMIN_DB_NAME: openzagora_admin
+      ADMIN_DB_USER: admin_user
+      ADMIN_DB_PASSWORD: admin_pass
+      MAIN_DB_HOST: db
+      MAIN_DB_PORT: 5432
+      MAIN_DB_NAME: open_zagora
+      MAIN_DB_USER: postgres
+      MAIN_DB_PASSWORD: postgres
+    volumes:
+      - ./admin-server/server.js:/app/server.js
+      - ./admin-server/db:/app/db
+      - ./admin-server/routes:/app/routes
+      - ./admin-server/middleware:/app/middleware
+      - ./admin-server/parsers:/app/parsers
+      - ./admin-server/scripts:/app/scripts
+      - admin_uploads_data_dev:/app/uploads
+      - admin_parsed_data_dev:/app/parsed
+    ports:
+      - "5001:5001"
+    depends_on:
+      admin-db:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - open-zagora-dev-network
+
+  # Admin Frontend  
+  admin-client:
+    build:
+      context: ./admin-client
+      dockerfile: Dockerfile.dev
+    container_name: open-zagora-admin-client-dev
+    restart: unless-stopped
+    # Removed user
+    environment:
+      VITE_API_URL: http://localhost:5001
+    volumes:
+      - ./admin-client/index.html:/app/index.html
+      - ./admin-client/vite.config.js:/app/vite.config.js
+      - ./admin-client/package.json:/app/package.json
+      - ./admin-client/src:/app/src
+    ports:
+      - "5174:5174"
+    depends_on:
+      - admin-server
+    networks:
+      - open-zagora-dev-network
+
+volumes:
+  postgres_data_dev:
+  uploads_data_dev:
+  parsed_data_dev:
+  admin_postgres_data_dev:
+  admin_uploads_data_dev:
+  admin_parsed_data_dev:
+
+networks:
+  open-zagora-dev-network:
+    driver: bridge
+

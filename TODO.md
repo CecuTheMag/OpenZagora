@@ -1,15 +1,12 @@
-# OpenZagora Admin Parsers Upgrade TODO
+# Budget Upload Fix TODO
 
-## Status: In Progress
+## Plan Breakdown
+1. [ ] Update admin-server/routes/upload.js: Fix exec to cd parsers/ && ./import-all-budget-data.sh with proper cwd/env
+2. [ ] Update admin-server/routes/budget.js: Copy to uploads/ (not /b/), fix exec to parsers/ sh
+3. [ ] Test ZIP upload via admin interface
+4. [ ] Test folder import
+5. [ ] Verify DB data matches manual docker exec run
+6. [ ] Complete ✅
 
-### Step 1: [✅] Create parsers/ultimate-budget-parser.js (modular exports)
-### Step 2: [ ] Overwrite parsers/expense-parser.js (modular)
-### Step 3: [ ] Create parsers/village-parser.js
-### Step 4: [ ] Create parsers/loan-parser.js  
-### Step 5: [ ] Create parsers/forecast-parser.js
-### Step 6: [ ] Update routes/upload.js (pdftotext + fixes)
-### Step 7: [ ] Test batch import (baseline)
-### Step 8: [ ] Test admin upload API
-### Step 9: [ ] Verify DB totals (~600M lv across tables)
+Ready for implementation step-by-step.
 
-**Next step:** Implement Step 1.

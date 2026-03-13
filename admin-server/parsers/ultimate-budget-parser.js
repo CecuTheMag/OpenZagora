@@ -7,13 +7,13 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { Pool } = require('pg');
 
-const PDF_DIR = path.join(__dirname, '..', 'budget-pdfs');
+const PDF_DIR = path.join(__dirname, '..', 'uploads');
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.MAIN_DB_HOST || process.env.DB_HOST || 'db',
   port: 5432,
-  database: 'open_zagora',
-  user: 'postgres',
-  password: 'postgres'
+  database: process.env.MAIN_DB_NAME || 'open_zagora',
+  user: process.env.MAIN_DB_USER || 'postgres',
+  password: process.env.MAIN_DB_PASSWORD || 'postgres'
 });
 
 // Bulgarian budget categories mapping
@@ -238,24 +238,44 @@ async function processPdf(filename) {
   for (const item of items) {
     try {
       if (docType === 'income') {
-        await pool.query(`
-          INSERT INTO budget_income (document_id, year, code, name, amount)
-          VALUES ($1, $2, $3, $4, $5)
-        `, [docId, 2025, item.code, item.description, item.amount]);
+        const existing = await pool.query(
+          'SELECT id FROM budget_income WHERE year = $1 AND code = $2 AND name = $3 AND amount = $4',
+          [2025, item.code, item.description, item.amount]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO budget_income (document_id, year, code, name, amount)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [docId, 2025, item.code, item.description, item.amount]);
+          inserted++;
+        }
       } else if (docType === 'expense') {
-        await pool.query(`
-          INSERT INTO budget_expenses (document_id, year, function_code, function_name, amount, program_name)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [docId, 2025, item.function_code, item.description, item.amount, item.category]);
+        const existing = await pool.query(
+          'SELECT id FROM budget_expenses WHERE year = $1 AND function_code = $2 AND function_name = $3 AND amount = $4',
+          [2025, item.function_code, item.description, item.amount]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO budget_expenses (document_id, year, function_code, function_name, amount, program_name)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [docId, 2025, item.function_code, item.description, item.amount, item.category]);
+          inserted++;
+        }
       } else if (docType === 'indicator') {
-        await pool.query(`
-          INSERT INTO budget_indicators (document_id, year, indicator_code, indicator_name, amount_approved, amount_executed)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [docId, 2025, item.indicator_code, item.description, item.amount_approved, item.amount_executed]);
+        const existing = await pool.query(
+          'SELECT id FROM budget_indicators WHERE year = $1 AND indicator_code = $2 AND indicator_name = $3 AND amount_approved = $4',
+          [2025, item.indicator_code, item.description, item.amount_approved]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO budget_indicators (document_id, year, indicator_code, indicator_name, amount_approved, amount_executed)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [docId, 2025, item.indicator_code, item.description, item.amount_approved, item.amount_executed]);
+          inserted++;
+        }
       }
-      inserted++;
     } catch (err) {
-      console.error(`   Error inserting: ${err.message}`);
+      // Skip errors
     }
   }
   
@@ -279,7 +299,18 @@ async function main() {
     
     console.log(`Processing ${files.length} PDF files...`);
     
+    // Track processed files to avoid duplicates
+    const processedHashes = new Set();
+    
     for (const file of files) {
+      // Create a simple hash from filename without the admin prefix
+      const cleanName = file.replace(/^admin-\d+-\d+-/, '');
+      if (processedHashes.has(cleanName)) {
+        console.log(`⏭️  Skipping duplicate: ${file}`);
+        continue;
+      }
+      processedHashes.add(cleanName);
+      
       await processPdf(file);
     }
     

@@ -1,13 +1,14 @@
 const { Pool } = require('pg');
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.MAIN_DB_HOST || process.env.DB_HOST || 'db',
   port: 5432,
-  database: 'open_zagora',
-  user: 'postgres',
-  password: 'postgres'
+  database: process.env.MAIN_DB_NAME || 'open_zagora',
+  user: process.env.MAIN_DB_USER || 'postgres',
+  password: process.env.MAIN_DB_PASSWORD || 'postgres'
 });
 
 // Map department codes to functions based on Bulgarian budget classification
@@ -98,7 +99,27 @@ function parseExpenseData(text) {
 async function importExpenses() {
   try {
     console.log('Parsing expense PDF...');
-    const pdfPath = path.join(__dirname, '..', 'budget-pdfs', 'pr 2 razhod  2025.pdf');
+    const allFiles = fs.readdirSync(path.join(__dirname, '..', 'uploads'));
+    const files = allFiles.filter(f => f.includes('razhod') && f.includes('2025'));
+    
+    // Remove duplicates by keeping only first occurrence
+    const uniqueFiles = [];
+    const seen = new Set();
+    for (const f of files) {
+      const cleanName = f.replace(/^admin-\d+-\d+-/, '');
+      if (!seen.has(cleanName)) {
+        seen.add(cleanName);
+        uniqueFiles.push(f);
+      }
+    }
+    
+    if (uniqueFiles.length === 0) {
+      console.log('No expense PDF found');
+      return;
+    }
+    
+    const pdfPath = path.join(__dirname, '..', 'uploads', uniqueFiles[0]);
+    console.log(`Found: ${uniqueFiles[0]}`);
     const text = execSync(`pdftotext -layout "${pdfPath}" -`, { encoding: 'utf8' });
     
     const expenses = parseExpenseData(text);
@@ -112,10 +133,20 @@ async function importExpenses() {
     await pool.query('DELETE FROM budget_expenses WHERE year = 2025');
     
     for (const expense of expenses) {
-      await pool.query(`
-        INSERT INTO budget_expenses (function_code, function_name, program_name, amount, year)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [expense.code, expense.name, expense.category, expense.amount, expense.year]);
+      try {
+        const existing = await pool.query(
+          'SELECT id FROM budget_expenses WHERE year = $1 AND function_code = $2 AND function_name = $3 AND amount = $4',
+          [expense.year, expense.code, expense.name, expense.amount]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO budget_expenses (function_code, function_name, program_name, amount, year)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [expense.code, expense.name, expense.category, expense.amount, expense.year]);
+        }
+      } catch (err) {
+        // Skip duplicates
+      }
     }
     
     const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);

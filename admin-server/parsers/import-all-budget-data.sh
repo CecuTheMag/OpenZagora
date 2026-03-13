@@ -31,29 +31,4 @@ echo ""
 
 echo "✅ All parsers completed!"
 echo ""
-echo "📊 Database Summary:"
-docker exec open-zagora-db-dev psql -U postgres -d open_zagora -c "
-SELECT 
-  'Income' as type, 
-  COUNT(*) as items, 
-  TO_CHAR(SUM(amount), 'FM999,999,999') || ' лв' as total 
-FROM budget_income WHERE year = 2025
-UNION ALL
-SELECT 'Expenses', COUNT(*), TO_CHAR(SUM(amount), 'FM999,999,999') || ' лв' 
-FROM budget_expenses WHERE year = 2025
-UNION ALL
-SELECT 'Villages', COUNT(*), TO_CHAR(SUM(total_amount), 'FM999,999,999') || ' лв' 
-FROM budget_villages WHERE year = 2025
-UNION ALL
-SELECT 'Loans', COUNT(*), TO_CHAR(SUM(original_amount), 'FM999,999,999') || ' лв' 
-FROM budget_loans WHERE year = 2025
-UNION ALL
-SELECT 'Forecasts', COUNT(*), TO_CHAR(SUM(amount_2025), 'FM999,999,999') || ' лв' 
-FROM budget_forecasts
-UNION ALL
-SELECT 'Indicators', COUNT(*), TO_CHAR(SUM(amount_approved), 'FM999,999,999') || ' лв' 
-FROM budget_indicators WHERE year = 2025;
-"
-
-echo ""
-echo "🎉 Import complete! Frontend ready at http://localhost:5173/budget"
+echo "🎉 Import complete!"

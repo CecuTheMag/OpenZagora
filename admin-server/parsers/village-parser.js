@@ -1,13 +1,14 @@
 const { Pool } = require('pg');
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const pool = new Pool({
-  host: 'localhost',
+  host: process.env.MAIN_DB_HOST || process.env.DB_HOST || 'db',
   port: 5432,
-  database: 'open_zagora',
-  user: 'postgres',
-  password: 'postgres'
+  database: process.env.MAIN_DB_NAME || 'open_zagora',
+  user: process.env.MAIN_DB_USER || 'postgres',
+  password: process.env.MAIN_DB_PASSWORD || 'postgres'
 });
 
 function parseVillageData(text) {
@@ -84,7 +85,27 @@ async function importVillages() {
     await createVillageTable();
     
     console.log('Parsing village budget PDF...');
-    const pdfPath = path.join(__dirname, '..', 'budget-pdfs', 'pr 54 kmetstva-plan-2025.pdf');
+    const allFiles = fs.readdirSync(path.join(__dirname, '..', 'uploads'));
+    const files = allFiles.filter(f => f.includes('kmetstva') && f.includes('2025'));
+    
+    // Remove duplicates
+    const uniqueFiles = [];
+    const seen = new Set();
+    for (const f of files) {
+      const cleanName = f.replace(/^admin-\d+-\d+-/, '');
+      if (!seen.has(cleanName)) {
+        seen.add(cleanName);
+        uniqueFiles.push(f);
+      }
+    }
+    
+    if (uniqueFiles.length === 0) {
+      console.log('No village PDF found');
+      return;
+    }
+    
+    const pdfPath = path.join(__dirname, '..', 'uploads', uniqueFiles[0]);
+    console.log(`Found: ${uniqueFiles[0]}`);
     const text = execSync(`pdftotext -layout "${pdfPath}" -`, { 
       encoding: 'utf8',
       shell: '/bin/bash'
@@ -101,12 +122,21 @@ async function importVillages() {
     // Clear existing village data for 2025
     await pool.query('DELETE FROM budget_villages WHERE year = 2025');
     
-    // Insert villages
     for (const village of villages) {
-      await pool.query(`
-        INSERT INTO budget_villages (code, name, state_personnel, state_maintenance, local_total, total_amount, year)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [village.code, village.name, village.state_personnel, village.state_maintenance, village.local_total, village.total_amount, village.year]);
+      try {
+        const existing = await pool.query(
+          'SELECT id FROM budget_villages WHERE year = $1 AND code = $2 AND name = $3 AND total_amount = $4',
+          [village.year, village.code, village.name, village.total_amount]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO budget_villages (code, name, state_personnel, state_maintenance, local_total, total_amount, year)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `, [village.code, village.name, village.state_personnel, village.state_maintenance, village.local_total, village.total_amount, village.year]);
+        }
+      } catch (err) {
+        // Skip duplicates
+      }
     }
     
     const total = villages.reduce((sum, v) => sum + v.total_amount, 0);

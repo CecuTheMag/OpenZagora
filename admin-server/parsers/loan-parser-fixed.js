@@ -4,25 +4,35 @@ const path = require('path');
 const fs = require('fs');
 
 const pool = new Pool({
-  host: 'localhost',
+  host: process.env.MAIN_DB_HOST || process.env.DB_HOST || 'db',
   port: 5432,
-  database: 'open_zagora',
-  user: 'postgres',
-  password: 'postgres'
+  database: process.env.MAIN_DB_NAME || 'open_zagora',
+  user: process.env.MAIN_DB_USER || 'postgres',
+  password: process.env.MAIN_DB_PASSWORD || 'postgres'
 });
 
 function parseLoanData(text, filename) {
   let loanType = '';
+  let creditor = '';
   let originalAmount = 0;
   let remainingAmount = 0;
   let interestRate = 0;
   let purpose = '';
   
-  // Extract loan type from filename
-  if (filename.includes('JESSICA')) loanType = 'JESSICA';
-  else if (filename.includes('FLAG')) loanType = 'FLAG';
-  else if (filename.includes('FUG')) loanType = 'FUG';
-  else if (filename.includes('UBB')) loanType = 'UBB';
+  // Extract loan type and creditor from filename
+  if (filename.includes('JESSICA')) {
+    loanType = 'JESSICA';
+    creditor = 'JESSICA Fund';
+  } else if (filename.includes('FLAG')) {
+    loanType = 'FLAG';
+    creditor = 'First Investment Bank (Fibank)';
+  } else if (filename.includes('FUG')) {
+    loanType = 'FUG';
+    creditor = 'Fund for Urban Development (FUG)';
+  } else if (filename.includes('UBB')) {
+    loanType = 'UBB';
+    creditor = 'United Bulgarian Bank (UBB)';
+  }
   
   // Extract amounts using simpler patterns
   const originalMatch = text.match(/Размер на кредита:\s*([0-9\s]+)\s*лева/i);
@@ -44,6 +54,7 @@ function parseLoanData(text, filename) {
     return [{
       loan_type: loanType,
       loan_code: filename.replace('.pdf', ''),
+      creditor: creditor,
       original_amount: originalAmount,
       remaining_amount: remainingAmount || originalAmount,
       interest_rate: interestRate,
@@ -59,16 +70,27 @@ async function importLoans() {
   try {
     console.log('Parsing loan PDFs...');
     
-    const loanFiles = fs.readdirSync(path.join(__dirname, '..', 'budget-pdfs'))
-      .filter(f => f.includes('ZAEM'));
+    const allFiles = fs.readdirSync(path.join(__dirname, '..', 'uploads'));
+    const loanFiles = allFiles.filter(f => f.includes('ZAEM'));
     
-    console.log(`Found ${loanFiles.length} loan files`);
+    // Remove duplicates
+    const uniqueFiles = [];
+    const seen = new Set();
+    for (const f of loanFiles) {
+      const cleanName = f.replace(/^admin-\d+-\d+-/, '');
+      if (!seen.has(cleanName)) {
+        seen.add(cleanName);
+        uniqueFiles.push(f);
+      }
+    }
+    
+    console.log(`Found ${uniqueFiles.length} unique loan files`);
     
     let allLoans = [];
     
-    for (const file of loanFiles) {
+    for (const file of uniqueFiles) {
       try {
-        const pdfPath = path.join(__dirname, '..', 'budget-pdfs', file);
+        const pdfPath = path.join(__dirname, '..', 'uploads', file);
         const text = execSync(`pdftotext -layout "${pdfPath}" -`, { 
           encoding: 'utf8',
           shell: '/bin/bash'
@@ -92,10 +114,20 @@ async function importLoans() {
     
     // Insert loans
     for (const loan of allLoans) {
-      await pool.query(`
-        INSERT INTO budget_loans (loan_type, loan_code, original_amount, remaining_amount, interest_rate, purpose, year)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [loan.loan_type, loan.loan_code, loan.original_amount, loan.remaining_amount, loan.interest_rate, loan.purpose, loan.year]);
+      try {
+        const existing = await pool.query(
+          'SELECT id FROM budget_loans WHERE year = $1 AND loan_type = $2 AND loan_code = $3 AND original_amount = $4',
+          [loan.year, loan.loan_type, loan.loan_code.substring(0, 100), loan.original_amount]
+        );
+        if (existing.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO budget_loans (loan_type, loan_code, creditor, original_amount, remaining_amount, interest_rate, purpose, year)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `, [loan.loan_type, loan.loan_code.substring(0, 100), loan.creditor, loan.original_amount, loan.remaining_amount, loan.interest_rate, loan.purpose.substring(0, 255), loan.year]);
+        }
+      } catch (err) {
+        console.log(`Skipped duplicate: ${loan.loan_type}`);
+      }
     }
     
     const totalOriginal = allLoans.reduce((sum, loan) => sum + loan.original_amount, 0);

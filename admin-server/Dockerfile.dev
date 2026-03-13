@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Install bash and poppler-utils for PDF parsing
+RUN apk add --no-cache bash poppler-utils
+
 # Use existing node user (UID 1000) instead of creating new one
 WORKDIR /app
 

@@ -22,7 +22,7 @@ router.use(requireAdmin);
 
 // Default budget folder path (main server's budget PDFs)
 const DEFAULT_BUDGET_FOLDER = '/app/budget-pdfs';
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'b');
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 
 // ==========================================
 // POST /api/admin/budget/import
@@ -103,7 +103,7 @@ router.post('/import', async (req, res) => {
     console.log(`📂 [ADMIN] Copied ${copiedCount} PDF files to uploads folder`);
 
     // Execute the import script
-    const scriptPath = path.join(__dirname, '..', 'scripts', 'import-all-budget-data.sh');
+    const scriptPath = path.join(__dirname, '..', 'parsers', 'import-all-budget-data.sh');
     
     // Check if script exists
     try {
@@ -121,7 +121,7 @@ router.post('/import', async (req, res) => {
     // Execute the shell script
     return new Promise((resolve, reject) => {
       // Use the source folder as argument
-      exec(`sh "${scriptPath}" "${sourceFolder}"`, {
+      exec(`cd /app/parsers && ./import-all-budget-data.sh`, {
         cwd: path.join(__dirname, '..'),
         timeout: 300000 // 5 minutes timeout
       }, async (error, stdout, stderr) => {
