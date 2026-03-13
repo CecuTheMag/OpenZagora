@@ -1,14 +1,15 @@
-# EOP Map Data Fix TODO
+# OpenZagora Admin Parsers Upgrade TODO
 
 ## Status: In Progress
 
+### Step 1: [✅] Create parsers/ultimate-budget-parser.js (modular exports)
+### Step 2: [ ] Overwrite parsers/expense-parser.js (modular)
+### Step 3: [ ] Create parsers/village-parser.js
+### Step 4: [ ] Create parsers/loan-parser.js  
+### Step 5: [ ] Create parsers/forecast-parser.js
+### Step 6: [ ] Update routes/upload.js (pdftotext + fixes)
+### Step 7: [ ] Test batch import (baseline)
+### Step 8: [ ] Test admin upload API
+### Step 9: [ ] Verify DB totals (~600M lv across tables)
 
-- Add fallback: if no exact match → `geocodeWithOSM("Стара Загора, България + ${municipality}")`
-- Integrate eopDistrictMapper if available
-
-### [ ] 4. Restart server: `cd server && npm run dev`
-### [ ] 5. Test pipeline: Map → "Fetch Data" button
-### [ ] 6. Verify: `curl http://localhost:5000/api/osm/debug` → osm>0, eop>0
-### [ ] 7. Map shows markers ✓
-
-*Estimated time: 5 minutes*
+**Next step:** Implement Step 1.

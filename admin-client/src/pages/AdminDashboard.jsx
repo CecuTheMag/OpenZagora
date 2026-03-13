@@ -12,7 +12,7 @@ import {
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen, Table, MapPin, Vote
+  Database, Lock, FolderOpen, Table, MapPin, Vote, Archive
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -68,8 +68,9 @@ const AdminDashboard = () => {
   // Handle file selection
   const handleFileSelect = (file) => {
     // Validate file type
-    if (file.type !== 'application/pdf') {
-      setUploadError('Only PDF files are allowed');
+    const allowedTypes = ['application/pdf', 'application/zip', 'application/x-zip-compressed'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Only PDF and ZIP files are allowed');
       setSelectedFile(null);
       return;
     }
@@ -97,7 +98,7 @@ const AdminDashboard = () => {
   // Handle upload
   const handleUpload = async () => {
     if (!selectedFile) {
-      setUploadError('Please select a PDF file');
+      setUploadError('Please select a PDF or ZIP file');
       return;
     }
 
@@ -108,7 +109,7 @@ const AdminDashboard = () => {
 
     try {
       const formData = new FormData();
-      formData.append('pdf', selectedFile);
+      formData.append('file', selectedFile);
       formData.append('type', documentType);
       if (customTitle.trim()) {
         formData.append('title', customTitle.trim());
@@ -386,14 +387,14 @@ const AdminDashboard = () => {
                           <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".pdf,application/pdf"
+                            accept=".pdf,application/pdf,.zip,application/zip,application/x-zip-compressed"
                             onChange={handleFileInputChange}
                             className="hidden"
                             disabled={isUploading}
                           />
                           <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                           <p className="text-lg font-medium text-gray-900 mb-2">
-                            Drop your PDF here
+                            Drop your PDF or ZIP here
                           </p>
                           <p className="text-sm text-gray-500 mb-4">
                             or click to browse from your computer
@@ -406,7 +407,11 @@ const AdminDashboard = () => {
                         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center">
-                              <FileText className="h-8 w-8 text-primary-600 mr-3" />
+                              {selectedFile.type.includes('zip') ? (
+                                <Archive className="h-8 w-8 text-primary-600 mr-3" />
+                              ) : (
+                                <FileText className="h-8 w-8 text-primary-600 mr-3" />
+                              )}
                               <div>
                                 <p className="text-sm font-medium text-gray-900">
                                   {selectedFile.name}
@@ -460,13 +465,33 @@ const AdminDashboard = () => {
                           <div>
                             <p className="font-medium">Upload successful!</p>
                             <p className="text-sm mt-1">
-                              Document stored in {uploadResult.databaseResult?.table} table
-                              {uploadResult.databaseResult?.id && ` (ID: ${uploadResult.databaseResult.id})`}
+                              {uploadResult.fileType === 'zip' ? 'ZIP file processed' : 'PDF uploaded'} - 
+                              {uploadResult.totalFiles} file{uploadResult.totalFiles !== 1 ? 's' : ''} processed, 
+                              {uploadResult.successfulFiles} successful
                             </p>
                             <p className="text-sm mt-1">
-                              Pages: {uploadResult.pageCount} | 
-                              Text: {uploadResult.textLength.toLocaleString()} characters
+                              Total items parsed: {uploadResult.totalItemsParsed.toLocaleString()} | 
+                              Total amount: {uploadResult.totalAmount.toLocaleString()} BGN
                             </p>
+                            {uploadResult.processedFiles && uploadResult.processedFiles.length > 1 && (
+                              <details className="mt-2">
+                                <summary className="text-sm cursor-pointer text-primary-600 hover:text-primary-800">
+                                  View processed files ({uploadResult.processedFiles.length})
+                                </summary>
+                                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                                  {uploadResult.processedFiles.map((file, index) => (
+                                    <div key={index} className="text-xs bg-gray-50 p-2 rounded">
+                                      <div className="font-medium">{file.originalName}</div>
+                                      <div className="text-gray-600">
+                                        Type: {file.documentType} | Items: {file.itemsParsed} | 
+                                        Amount: {file.totalAmount?.toLocaleString() || 0} BGN
+                                        {file.error && <span className="text-red-600"> | Error: {file.error}</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -486,7 +511,7 @@ const AdminDashboard = () => {
                       ) : (
                         <>
                           <Upload className="h-5 w-5 mr-2" />
-                          Upload PDF Document
+                          Upload Document
                         </>
                       )}
                     </button>

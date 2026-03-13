@@ -138,16 +138,14 @@ services:
       MAIN_DB_USER: postgres
       MAIN_DB_PASSWORD: postgres
     volumes:
-      - admin_uploads_data_dev:/app/uploads:Z
-      - admin_parsed_data_dev:/app/parsed:Z
       - ./admin-server/server.js:/app/server.js:Z
       - ./admin-server/db:/app/db:Z
       - ./admin-server/routes:/app/routes:Z
       - ./admin-server/middleware:/app/middleware:Z
       - ./admin-server/parsers:/app/parsers:Z
       - ./admin-server/scripts:/app/scripts:Z
-      - ./admin-server/uploads:/app/uploads:Z
-      - ./admin-server/parsed:/app/parsed:Z
+      - admin_uploads_data_dev:/app/uploads:Z
+      - admin_parsed_data_dev:/app/parsed:Z
     ports:
       - "5001:5001"
     depends_on:

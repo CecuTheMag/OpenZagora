@@ -10,12 +10,15 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
-const pdfParse = require('pdf-parse');
 const { Pool } = require('pg');
+const AdmZip = require('adm-zip');
+const pdfParse = require('pdf-parse');
 const router = express.Router();
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { pool, logAuditEvent } = require('../db/pool');
 const { parseIncome, parseExpenses, parseVillages, parseLoans, parseForecasts, parseIndicators } = require('../parsers');
+
+// NOTE: Parsing is handled by shared parser modules under /parsers.
 
 // ==========================================
 // MAIN DATABASE CONNECTION
@@ -51,10 +54,12 @@ const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const uploadDir = path.join(__dirname, '..', 'uploads');
     const parsedDir = path.join(__dirname, '..', 'parsed');
+    const budgetPdfDir = path.join(__dirname, '..', 'budget-pdfs');
     
     try {
       await fs.mkdir(uploadDir, { recursive: true });
       await fs.mkdir(parsedDir, { recursive: true });
+      await fs.mkdir(budgetPdfDir, { recursive: true });
       cb(null, uploadDir);
     } catch (err) {
       cb(err);
@@ -68,10 +73,10 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype === 'application/pdf') {
+  if (file.mimetype === 'application/pdf' || file.mimetype === 'application/zip' || file.mimetype === 'application/x-zip-compressed') {
     cb(null, true);
   } else {
-    cb(new Error('Only PDF files are allowed'), false);
+    cb(new Error('Only PDF and ZIP files are allowed'), false);
   }
 };
 
@@ -91,32 +96,214 @@ router.use(authenticate);
 router.use(requireAdmin);
 
 // ==========================================
-// POST /api/admin/upload
-// Upload and parse PDF file (Admin only)
+// HELPER FUNCTION: Process a single PDF file
 // ==========================================
-router.post('/', upload.single('pdf'), async (req, res) => {
+async function processSinglePdf(filePath, originalname, filename, req, mainPool) {
+  // Extract text using pdf-parse (no external tools required)
+  let rawText = '';
+  let pageCount = null;
+
+  try {
+    const pdfBuffer = await fs.readFile(filePath);
+    const pdfData = await pdfParse(pdfBuffer);
+    rawText = pdfData.text || '';
+    pageCount = pdfData.numpages || null;
+  } catch (err) {
+    console.warn(`⚠️ [ADMIN] Could not extract text from ${originalname}:`, err.message);
+    rawText = '';
+  }
+
+  console.log(`✅ [ADMIN] PDF parsed successfully: ${originalname}. Pages: ${pageCount}, Text length: ${rawText.length}`);
+
+  // Save raw data to JSON backup
+  const rawData = {
+    uploadedBy: req.user.username,
+    uploadedById: req.user.id,
+    originalName: originalname,
+    fileName: filename,
+    parsedAt: new Date().toISOString(),
+    pageCount: pageCount,
+    textLength: rawText.length,
+    rawText: rawText
+  };
+
+  const parsedFilePath = path.join(__dirname, '..', 'parsed', `${filename}.json`);
+  await fs.writeFile(parsedFilePath, JSON.stringify(rawData, null, 2));
+
+  // Determine document type from filename
+  const lowerFilename = originalname.toLowerCase();
+  let classification = { type: 'unknown', year: new Date().getFullYear(), description: originalname };
+  
+  // Use more specific patterns to avoid substring matches
+  if (lowerFilename.includes('prihod') || /^pr 1 /.test(lowerFilename)) {
+    classification = { type: 'income', year: 2025, description: 'Income Budget' };
+  } else if (lowerFilename.includes('razhod') || /^pr 2 /.test(lowerFilename)) {
+    classification = { type: 'expense', year: 2025, description: 'Expense Budget' };
+  } else if (lowerFilename.includes('kmetstva') || /^pr 54 /.test(lowerFilename)) {
+    classification = { type: 'village', year: 2025, description: 'Village Budget' };
+  } else if (lowerFilename.includes('zaem')) {
+    classification = { type: 'loan', year: 2025, description: 'Loan Document' };
+  } else if (lowerFilename.includes('prognoza') || /^pr 57 /.test(lowerFilename)) {
+    classification = { type: 'forecast', year: 2025, description: 'Budget Forecast' };
+  } else if (lowerFilename.includes('indik') || /d\d{3}/.test(lowerFilename)) {
+    classification = { type: 'indicator', year: 2025, description: 'Budget Indicator' };
+  }
+  
+  console.log(`📋 [ADMIN] Document classified as: ${classification.type} for year ${classification.year}`);
+
+  // Parse document with appropriate parser (using same logic as ultimate-budget-parser.js)
+  let parsedResult = { success: false, items: [], type: classification.type };
+  
+  try {
+    if (classification.type === 'income') {
+      const items = parseIncome(rawText);
+      console.log(`🔍 [ADMIN] Income parser returned ${items.length} items for ${originalname}`);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount, 0) };
+      }
+    } else if (classification.type === 'expense') {
+      const items = parseExpenses(rawText);
+      console.log(`🔍 [ADMIN] Expense parser returned ${items.length} items for ${originalname}`);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount, 0) };
+      }
+    } else if (classification.type === 'indicator') {
+      const items = parseIndicators(rawText, originalname);
+      console.log(`🔍 [ADMIN] Indicator parser returned ${items.length} items for ${originalname}`);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount_approved, 0) };
+      }
+    } else if (classification.type === 'village') {
+      const items = parseVillages(rawText);
+      console.log(`🔍 [ADMIN] Village parser returned ${items.length} items for ${originalname}`);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.total_amount, 0) };
+      }
+    } else if (classification.type === 'loan') {
+      const items = parseLoans(rawText, originalname);
+      console.log(`🔍 [ADMIN] Loan parser returned ${items.length} items for ${originalname}`);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.original_amount, 0) };
+      }
+    } else if (classification.type === 'forecast') {
+      const items = parseForecasts(rawText);
+      console.log(`🔍 [ADMIN] Forecast parser returned ${items.length} items for ${originalname}`);
+      if (items.length > 0) {
+        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount_2025, 0) };
+      }
+    }
+  } catch (parseError) {
+    console.error(`❌ [ADMIN] Parser error for ${classification.type} (${originalname}):`, parseError);
+    parsedResult.errors = [parseError.message];
+  }
+  
+  if (!parsedResult.success) {
+    console.warn(`⚠️ [ADMIN] Parsing had issues for ${classification.type} (${originalname}):`, parsedResult.errors || 'No items found');
+  }
+
+  // Store document metadata
+  const docResult = await storeDocumentMetadata({
+    filename: filename,
+    originalName: originalname,
+    year: classification.year || new Date().getFullYear(),
+    documentType: classification.type,
+    documentSubtype: classification.subtype,
+    category: classification.description,
+    uploadedBy: req.user.username,
+    fileSize: (await fs.stat(filePath)).size,
+    pageCount: pageCount,
+    rawText: rawText,
+    parsedData: parsedResult,
+    status: parsedResult.success ? 'parsed' : 'error'
+  });
+
+  const documentId = docResult.id;
+
+  // Store parsed data in appropriate tables
+  let storedItems = 0;
+  if (parsedResult.items && parsedResult.items.length > 0) {
+    for (const item of parsedResult.items) {
+      try {
+        if (parsedResult.type === 'income') {
+          await mainPool.query(
+            'INSERT INTO budget_income (document_id, year, code, name, amount) VALUES ($1, $2, $3, $4, $5)',
+            [documentId, classification.year, item.code, item.name, item.amount]
+          );
+        } else if (parsedResult.type === 'expense') {
+          await mainPool.query(
+            'INSERT INTO budget_expenses (document_id, year, function_code, function_name, program_name, amount) VALUES ($1, $2, $3, $4, $5, $6)',
+            [documentId, classification.year, item.function_code, item.function_name, item.program_name, item.amount]
+          );
+        } else if (parsedResult.type === 'indicator') {
+          await mainPool.query(
+            'INSERT INTO budget_indicators (document_id, year, indicator_code, indicator_name, amount_approved, amount_executed) VALUES ($1, $2, $3, $4, $5, $6)',
+            [documentId, classification.year, item.indicator_code, item.indicator_name, item.amount_approved, item.amount_executed]
+          );
+        } else if (parsedResult.type === 'loan') {
+          await mainPool.query(
+            'INSERT INTO budget_loans (document_id, year, loan_type, loan_code, original_amount, remaining_amount, interest_rate, purpose) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+            [documentId, classification.year, item.loan_type, item.loan_code, item.original_amount, item.remaining_amount, item.interest_rate, item.purpose]
+          );
+        } else if (parsedResult.type === 'village') {
+          await mainPool.query(
+            'INSERT INTO budget_villages (document_id, year, code, name, state_personnel, state_maintenance, local_total, total_amount) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+            [documentId, classification.year, item.code, item.name, item.state_personnel, item.state_maintenance, item.local_total, item.total_amount]
+          );
+        } else if (parsedResult.type === 'forecast') {
+          await mainPool.query(
+            'INSERT INTO budget_forecasts (document_id, code, name, amount_2024, amount_2025, amount_2026, amount_2027, amount_2028) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+            [documentId, item.code, item.name, item.amount_2024, item.amount_2025, item.amount_2026, item.amount_2027, item.amount_2028]
+          );
+        }
+        storedItems++;
+      } catch (err) {
+        console.error(`❌ [ADMIN] Error storing ${parsedResult.type} item:`, err.message);
+        console.error('Item data:', item);
+        console.error('Document ID:', documentId);
+      }
+    }
+  }
+
+  return {
+    filename,
+    originalname,
+    classification,
+    pageCount,
+    rawText,
+    parsedResult,
+    storedItems,
+    documentId,
+    parsedFilePath
+  };
+}
+
+// ==========================================
+// POST /api/admin/upload
+// Upload and parse PDF file or ZIP containing PDFs (Admin only)
+// ==========================================
+router.post('/', upload.single('file'), async (req, res) => {
   let auditLogId = null;
   
   try {
     if (!req.file) {
       return res.status(400).json({ 
-        error: 'No PDF file provided',
-        message: 'Please select a PDF file to upload'
+        error: 'No file provided',
+        message: 'Please select a PDF or ZIP file to upload'
       });
     }
 
-    const { path: filePath, originalname, filename, size } = req.file;
+    const { path: filePath, originalname, filename, size, mimetype } = req.file;
     const documentType = req.body.type || 'unknown';
     const customTitle = req.body.title || null;
     const customDescription = req.body.description || null;
 
-    console.log(`📄 [ADMIN] Processing PDF: ${originalname} (Type: ${documentType}) by ${req.user.username}`);
+    console.log(`📄 [ADMIN] Processing file: ${originalname} (Type: ${mimetype}) by ${req.user.username}`);
 
     // Log upload attempt
     auditLogId = await logAuditEvent({
       adminUserId: req.user.id,
       action: 'upload_attempt',
-      resourceType: 'pdf',
+      resourceType: mimetype.includes('zip') ? 'zip' : 'pdf',
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       details: {
@@ -130,220 +317,151 @@ router.post('/', upload.single('pdf'), async (req, res) => {
       success: true
     });
 
-    // Read and parse PDF
-    const pdfBuffer = await fs.readFile(filePath);
-    const pdfData = await pdfParse(pdfBuffer);
-    const rawText = pdfData.text;
+    let processedFiles = [];
 
-    console.log(`✅ [ADMIN] PDF parsed successfully. Pages: ${pdfData.numpages}, Text length: ${rawText.length}`);
+    if (mimetype.includes('zip')) {
+      // Handle ZIP file
+      console.log(`📦 [ADMIN] Extracting ZIP file: ${originalname}`);
+      
+      const zip = new AdmZip(filePath);
+      const zipEntries = zip.getEntries();
+      
+      // Create temp directory for extracted PDFs
+      const tempDir = path.join(__dirname, '..', 'uploads', `temp-${Date.now()}`);
+      await fs.mkdir(tempDir, { recursive: true });
+      
+      const budgetPdfDir = path.join(__dirname, '..', 'budget-pdfs');
 
-    // Save raw data to JSON backup
-    const rawData = {
-      uploadedBy: req.user.username,
-      uploadedById: req.user.id,
-      originalName: originalname,
-      fileName: filename,
-      documentType: documentType,
-      parsedAt: new Date().toISOString(),
-      pageCount: pdfData.numpages,
-      textLength: rawText.length,
-      customTitle: customTitle,
-      customDescription: customDescription,
-      rawText: rawText
-    };
+      for (const entry of zipEntries) {
+        if (!entry.isDirectory && entry.entryName.toLowerCase().endsWith('.pdf')) {
+          const pdfPath = path.join(tempDir, entry.entryName);
+          await fs.mkdir(path.dirname(pdfPath), { recursive: true });
+          await fs.writeFile(pdfPath, entry.getData());
 
-    const parsedFilePath = path.join(__dirname, '..', 'parsed', `${filename}.json`);
-    await fs.writeFile(parsedFilePath, JSON.stringify(rawData, null, 2));
+          // Generate unique filename for this PDF
+          const pdfFilename = `admin-${Date.now()}-${Math.round(Math.random() * 1E9)}-${entry.entryName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const finalPdfPath = path.join(__dirname, '..', 'uploads', pdfFilename);
+          await fs.rename(pdfPath, finalPdfPath);
 
-    // Determine document type from filename
-    const lowerFilename = originalname.toLowerCase();
-    let classification = { type: documentType, year: new Date().getFullYear(), description: originalname };
-    
-    if (lowerFilename.includes('prihod') || lowerFilename.includes('pr 1')) {
-      classification = { type: 'income', year: 2025, description: 'Income Budget' };
-    } else if (lowerFilename.includes('razhod') || lowerFilename.includes('pr 2')) {
-      classification = { type: 'expense', year: 2025, description: 'Expense Budget' };
-    } else if (lowerFilename.includes('kmetstva') || lowerFilename.includes('pr 54')) {
-      classification = { type: 'village', year: 2025, description: 'Village Budget' };
-    } else if (lowerFilename.includes('zaem')) {
-      classification = { type: 'loan', year: 2025, description: 'Loan Document' };
-    } else if (lowerFilename.includes('prognoza') || lowerFilename.includes('pr 57')) {
-      classification = { type: 'forecast', year: 2025, description: 'Budget Forecast' };
-    } else if (lowerFilename.match(/indik|d\d{3}/i)) {
-      classification = { type: 'indicator', year: 2025, description: 'Budget Indicator' };
-    }
-    
-    console.log(`📋 [ADMIN] Document classified as: ${classification.type} for year ${classification.year}`);
+          // Also keep a copy in the budget-pdfs folder (for archive/inspection)
+          const budgetPdfPath = path.join(budgetPdfDir, pdfFilename);
+          await fs.copyFile(finalPdfPath, budgetPdfPath);
 
-    // Parse document with appropriate parser
-    let parsedResult = { success: false, items: [], type: classification.type };
-    
-    if (classification.type === 'income') {
-      const items = parseIncome(filePath, mainPool);
-      if (items.length > 0) {
-        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount, 0) };
-      }
-    } else if (classification.type === 'expense') {
-      const items = parseExpenses(filePath, mainPool);
-      if (items.length > 0) {
-        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount, 0) };
-      }
-    } else if (classification.type === 'village') {
-      const items = parseVillages(filePath, mainPool);
-      if (items.length > 0) {
-        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.total_amount, 0) };
-      }
-    } else if (classification.type === 'loan') {
-      const items = parseLoans(filePath, mainPool, originalname);
-      if (items.length > 0) {
-        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.original_amount, 0) };
-      }
-    } else if (classification.type === 'forecast') {
-      const items = parseForecasts(filePath, mainPool);
-      if (items.length > 0) {
-        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount_2025, 0) };
-      }
-    } else if (classification.type === 'indicator') {
-      const items = parseIndicators(filePath, mainPool, originalname);
-      if (items.length > 0) {
-        parsedResult = { success: true, items, totalAmount: items.reduce((s, i) => s + i.amount_approved, 0) };
-      }
-    }
-    
-    if (!parsedResult.success) {
-      console.warn(`⚠️ [ADMIN] Parsing had issues:`, parsedResult.errors);
-    }
-
-    // Store document metadata
-    const docResult = await storeDocumentMetadata({
-      filename: filename,
-      originalName: originalname,
-      year: classification.year || new Date().getFullYear(),
-      documentType: classification.type,
-      documentSubtype: classification.subtype,
-      category: classification.description,
-      uploadedBy: req.user.username,
-      fileSize: size,
-      pageCount: pdfData.numpages,
-      rawText: rawText,
-      parsedData: parsedResult,
-      status: parsedResult.success ? 'parsed' : 'error'
-    });
-
-    const documentId = docResult.id;
-
-    // Store parsed data in appropriate tables
-    let storedItems = 0;
-    if (parsedResult.items && parsedResult.items.length > 0) {
-      for (const item of parsedResult.items) {
-        try {
-          if (parsedResult.type === 'income') {
-            await mainPool.query(
-              'INSERT INTO budget_income (document_id, year, code, name, amount) VALUES ($1, $2, $3, $4, $5)',
-              [documentId, classification.year, item.code, item.name, item.amount]
-            );
-          } else if (parsedResult.type === 'expense') {
-            await mainPool.query(
-              'INSERT INTO budget_expenses (document_id, year, function_code, function_name, program_name, amount) VALUES ($1, $2, $3, $4, $5, $6)',
-              [documentId, classification.year, item.function_code, item.function_name, item.program_name, item.amount]
-            );
-          } else if (parsedResult.type === 'indicator') {
-            await mainPool.query(
-              'INSERT INTO budget_indicators (document_id, year, indicator_code, indicator_name, amount_approved, amount_executed) VALUES ($1, $2, $3, $4, $5, $6)',
-              [documentId, classification.year, item.indicator_code, item.indicator_name, item.amount_approved, item.amount_executed]
-            );
-          } else if (parsedResult.type === 'loan') {
-            await mainPool.query(
-              'INSERT INTO budget_loans (document_id, year, loan_type, loan_code, original_amount, remaining_amount, interest_rate, purpose) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-              [documentId, classification.year, item.loan_type, item.loan_code, item.original_amount, item.remaining_amount, item.interest_rate, item.purpose]
-            );
-          } else if (parsedResult.type === 'village') {
-            await mainPool.query(
-              'INSERT INTO budget_villages (document_id, year, code, name, state_personnel, state_maintenance, local_total, total_amount) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-              [documentId, classification.year, item.code, item.name, item.state_personnel, item.state_maintenance, item.local_total, item.total_amount]
-            );
-          } else if (parsedResult.type === 'forecast') {
-            await mainPool.query(
-              'INSERT INTO budget_forecasts (document_id, code, name, amount_2024, amount_2025, amount_2026, amount_2027, amount_2028) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-              [documentId, item.code, item.name, item.amount_2024, item.amount_2025, item.amount_2026, item.amount_2027, item.amount_2028]
-            );
+          try {
+            const result = await processSinglePdf(finalPdfPath, entry.entryName, pdfFilename, req, mainPool);
+            processedFiles.push(result);
+          } catch (err) {
+            console.error(`❌ [ADMIN] Error processing PDF ${entry.entryName}:`, err);
+            processedFiles.push({
+              filename: pdfFilename,
+              originalname: entry.entryName,
+              error: err.message
+            });
           }
-          storedItems++;
-        } catch (err) {
-          console.error('Error storing parsed item:', err);
         }
       }
+      
+      // Clean up temp directory
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      } catch (err) {
+        console.error('Error cleaning temp dir:', err);
+      }
+      
+    } else {
+      // Handle single PDF file
+      try {
+        const budgetPdfDir = path.join(__dirname, '..', 'budget-pdfs');
+        const budgetPdfPath = path.join(budgetPdfDir, filename);
+        await fs.copyFile(filePath, budgetPdfPath);
+
+        const result = await processSinglePdf(filePath, originalname, filename, req, mainPool);
+        processedFiles.push(result);
+      } catch (err) {
+        console.error(`❌ [ADMIN] Error processing PDF ${originalname}:`, err);
+        processedFiles.push({
+          filename,
+          originalname,
+          error: err.message
+        });
+      }
     }
 
-    // Also store in legacy tables for backward compatibility
-    let legacyResult = null;
-    if (documentType === 'budget' || classification.type === 'income' || classification.type === 'expense') {
-      legacyResult = await storeBudgetDocument(rawText, filename, customTitle || classification.description);
-    } else if (documentType === 'project') {
-      legacyResult = await storeProjectDocument(rawText, filename, customTitle, customDescription);
-    } else if (documentType === 'vote' || documentType === 'council_vote') {
-      legacyResult = await storeVoteDocument(rawText, filename, customTitle);
+    // Clean up original uploaded file
+    try {
+      await fs.unlink(filePath);
+    } catch (err) {
+      console.error('Error deleting uploaded file:', err);
     }
+
+    // Calculate totals
+    const totalFiles = processedFiles.length;
+    const successfulFiles = processedFiles.filter(f => !f.error).length;
+    const totalItems = processedFiles.reduce((sum, f) => sum + (f.parsedResult?.items?.length || 0), 0);
+    const totalAmount = processedFiles.reduce((sum, f) => sum + (f.parsedResult?.totalAmount || 0), 0);
 
     // Update audit log with success
     await logAuditEvent({
       adminUserId: req.user.id,
       action: 'upload_success',
-      resourceType: 'pdf',
-      resourceId: documentId,
+      resourceType: mimetype.includes('zip') ? 'zip' : 'pdf',
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       details: {
         originalName: originalname,
         fileName: filename,
-        documentType: classification.type,
-        documentSubtype: classification.subtype,
-        year: classification.year,
-        pageCount: pdfData.numpages,
-        textLength: rawText.length,
-        itemsParsed: parsedResult.items ? parsedResult.items.length : 0,
-        itemsStored: storedItems,
-        classification: classification,
-        legacyTable: legacyResult ? legacyResult.table : null
+        documentType: documentType,
+        fileSize: size,
+        totalFiles: totalFiles,
+        successfulFiles: successfulFiles,
+        totalItemsParsed: totalItems,
+        totalAmount: totalAmount,
+        processedFiles: processedFiles.map(f => ({
+          originalName: f.originalname,
+          documentType: f.classification?.type,
+          itemsParsed: f.parsedResult?.items?.length || 0,
+          error: f.error
+        }))
       },
       success: true
     });
 
     res.status(201).json({
       success: true,
-      message: 'PDF uploaded and parsed successfully',
+      message: mimetype.includes('zip') ? 'ZIP uploaded and PDFs parsed successfully' : 'PDF uploaded and parsed successfully',
       data: {
         uploadedBy: req.user.username,
         originalName: originalname,
         fileName: filename,
-        documentType: classification.type,
-        documentSubtype: classification.subtype,
-        year: classification.year,
-        pageCount: pdfData.numpages,
-        textLength: rawText.length,
-        textPreview: rawText.substring(0, 500) + (rawText.length > 500 ? '...' : ''),
-        classification: classification,
-        parsedData: {
-          totalItems: parsedResult.totalItems || 0,
-          totalAmount: parsedResult.totalAmount || parsedResult.totalApproved || 0,
-          items: parsedResult.items ? parsedResult.items.slice(0, 5) : [] // First 5 items only
-        },
-        storedItems: storedItems,
-        documentId: documentId,
-        legacyResult: legacyResult,
-        parsedFile: parsedFilePath,
+        fileType: mimetype.includes('zip') ? 'zip' : 'pdf',
+        totalFiles: totalFiles,
+        successfulFiles: successfulFiles,
+        totalItemsParsed: totalItems,
+        totalAmount: totalAmount,
+        processedFiles: processedFiles.map(f => ({
+          originalName: f.originalname,
+          fileName: f.filename,
+          documentType: f.classification?.type,
+          year: f.classification?.year,
+          pageCount: f.pageCount,
+          textLength: f.rawText?.length,
+          itemsParsed: f.parsedResult?.items?.length || 0,
+          totalAmount: f.parsedResult?.totalAmount || 0,
+          documentId: f.documentId,
+          error: f.error
+        })),
         uploadedAt: new Date().toISOString()
       }
     });
 
   } catch (error) {
-    console.error('❌ [ADMIN] Error processing PDF:', error);
+    console.error('❌ [ADMIN] Error processing file:', error);
     
     // Log failure
     await logAuditEvent({
       adminUserId: req.user.id,
       action: 'upload_failed',
-      resourceType: 'pdf',
+      resourceType: req.file?.mimetype?.includes('zip') ? 'zip' : 'pdf',
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       details: {
@@ -364,7 +482,7 @@ router.post('/', upload.single('pdf'), async (req, res) => {
     }
 
     res.status(500).json({
-      error: 'Failed to process PDF',
+      error: 'Failed to process file',
       message: error.message
     });
   }
@@ -631,34 +749,43 @@ router.post('/folder', async (req, res) => {
         const filePath = path.join(fullPath, pdfFile);
         console.log(`📄 [ADMIN] Processing: ${pdfFile}`);
         
-        // Read and parse PDF
-        const pdfBuffer = await fs.readFile(filePath);
-        const pdfData = await pdfParse(pdfBuffer);
-        const rawText = pdfData.text;
+        // Extract text using pdf-parse (no external tools required)
+        let rawText = '';
+        let pageCount = null;
+
+        try {
+          const pdfBuffer = await fs.readFile(filePath);
+          const pdfData = await pdfParse(pdfBuffer);
+          rawText = pdfData.text || '';
+          pageCount = pdfData.numpages || null;
+        } catch (err) {
+          console.warn(`⚠️ [ADMIN] Could not extract text from ${pdfFile}:`, err.message);
+          rawText = '';
+        }
         
         // Parse with working parsers in sequence (same as import-all-budget-data.sh)
         const fileYear = parseInt(year) || 2025;
         let parsedResult = { success: false, items: [], type: 'unknown' };
         
         // Step 1: Try income parser
-        if (pdfFile.toLowerCase().includes('prihod') || pdfFile.toLowerCase().includes('pr 1')) {
-          const items = parseIncome(filePath, mainPool);
+        if (pdfFile.toLowerCase().includes('prihod') || /^pr 1 /.test(pdfFile.toLowerCase())) {
+          const items = parseIncome(rawText);
           if (items.length > 0) {
             parsedResult = { success: true, items, type: 'income', totalAmount: items.reduce((s, i) => s + i.amount, 0) };
           }
         }
         
         // Step 2: Try expense parser
-        if (!parsedResult.success && (pdfFile.toLowerCase().includes('razhod') || pdfFile.toLowerCase().includes('pr 2'))) {
-          const items = parseExpenses(filePath, mainPool);
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('razhod') || /^pr 2 /.test(pdfFile.toLowerCase()))) {
+          const items = parseExpenses(rawText);
           if (items.length > 0) {
             parsedResult = { success: true, items, type: 'expense', totalAmount: items.reduce((s, i) => s + i.amount, 0) };
           }
         }
         
         // Step 3: Try village parser
-        if (!parsedResult.success && (pdfFile.toLowerCase().includes('kmetstva') || pdfFile.toLowerCase().includes('pr 54'))) {
-          const items = parseVillages(filePath, mainPool);
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('kmetstva') || /^pr 54 /.test(pdfFile.toLowerCase()))) {
+          const items = parseVillages(rawText);
           if (items.length > 0) {
             parsedResult = { success: true, items, type: 'village', totalAmount: items.reduce((s, i) => s + i.total_amount, 0) };
           }
@@ -666,23 +793,23 @@ router.post('/folder', async (req, res) => {
         
         // Step 4: Try loan parser
         if (!parsedResult.success && pdfFile.toLowerCase().includes('zaem')) {
-          const items = parseLoans(filePath, mainPool, pdfFile);
+          const items = parseLoans(rawText, pdfFile);
           if (items.length > 0) {
             parsedResult = { success: true, items, type: 'loan', totalAmount: items.reduce((s, i) => s + i.original_amount, 0) };
           }
         }
         
         // Step 5: Try forecast parser
-        if (!parsedResult.success && (pdfFile.toLowerCase().includes('prognoza') || pdfFile.toLowerCase().includes('pr 57'))) {
-          const items = parseForecasts(filePath, mainPool);
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('prognoza') || /^pr 57 /.test(pdfFile.toLowerCase()))) {
+          const items = parseForecasts(rawText);
           if (items.length > 0) {
             parsedResult = { success: true, items, type: 'forecast', totalAmount: items.reduce((s, i) => s + i.amount_2025, 0) };
           }
         }
         
         // Step 6: Try indicator parser
-        if (!parsedResult.success && pdfFile.match(/indik|d\d{3}/i)) {
-          const items = parseIndicators(filePath, mainPool, pdfFile);
+        if (!parsedResult.success && (pdfFile.toLowerCase().includes('indik') || /d\d{3}/.test(pdfFile))) {
+          const items = parseIndicators(rawText, pdfFile);
           if (items.length > 0) {
             parsedResult = { success: true, items, type: 'indicator', totalAmount: items.reduce((s, i) => s + i.amount_approved, 0) };
           }
@@ -699,7 +826,7 @@ router.post('/folder', async (req, res) => {
           category: classification.description,
           uploadedBy: req.user.username,
           fileSize: pdfBuffer.length,
-          pageCount: pdfData.numpages,
+          pageCount: pageCount,
           rawText: rawText,
           parsedData: parsedResult,
           status: parsedResult.success ? 'parsed' : 'error'
@@ -758,7 +885,7 @@ router.post('/folder', async (req, res) => {
           year: fileYear,
           itemsStored: storedItems,
           totalAmount: parsedResult.totalAmount || 0,
-          pages: pdfData.numpages
+          pages: pageCount
         });
         
         console.log(`✅ [ADMIN] ${pdfFile}: ${parsedResult.type}, ${storedItems} items, ${(parsedResult.totalAmount || 0).toLocaleString()} лв`);
