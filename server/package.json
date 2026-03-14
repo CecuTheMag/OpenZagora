@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "nodemon --watch . --ext js,json server.js",
     "db:init": "node db/init.js"
   },
   "keywords": [

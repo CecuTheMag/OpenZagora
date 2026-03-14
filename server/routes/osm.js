@@ -323,7 +323,7 @@ router.get('/', async (req, res) => {
 router.get('/unified/map', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 2000;
-        const showInfrastructureOnly = req.query.infrastructure !== 'false';
+        const showInfrastructureOnly = req.query.infrastructure === 'true';
         
         // Get data from all sources
         const [osmData, eopData] = await Promise.all([
@@ -415,7 +415,7 @@ router.get('/unified/map', async (req, res) => {
         };
         
         osmData
-            .filter(item => importantTypes.includes(item.data_type))
+            .filter(item => importantTypes.includes(item.data_type) && item.name)
             .forEach(item => {
                 markers.push({
                     id: item.id,
@@ -441,7 +441,7 @@ router.get('/unified/map', async (req, res) => {
                     infrastructure: eopInfra,
                     other: eopOther
                 },
-                osm: osmData.filter(item => importantTypes.includes(item.data_type)).length
+                osm: osmData.filter(item => importantTypes.includes(item.data_type) && item.name).length
             },
             filters: {
                 infrastructureOnly: showInfrastructureOnly

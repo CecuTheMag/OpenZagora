@@ -5,6 +5,7 @@
  * Shows voting history, results, and participation analytics.
  */
 
+import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import {
@@ -35,6 +36,7 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function CouncilPage() {
+  const { t } = useLanguage()
   const [votes, setVotes] = useState([])
   const [statistics, setStatistics] = useState(null)
   const [years, setYears] = useState([])
@@ -168,7 +170,7 @@ function CouncilPage() {
           onClick={fetchVotes}
           className="mt-4 btn-primary"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     )
@@ -179,9 +181,9 @@ function CouncilPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Council Votes</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('home.councilVotes')}</h1>
           <p className="text-gray-600 mt-1">
-            Municipal council voting records and decisions
+            {t('home.votesDesc')}
           </p>
         </div>
 

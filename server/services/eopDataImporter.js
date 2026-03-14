@@ -89,6 +89,7 @@ class EOPDataImporter {
       
       if (existingResult.rows.length > 0) {
         // Update existing record
+        // Preserve existing lat/lng — do NOT overwrite geocoded coordinates on re-import
         const updateQuery = `
           UPDATE eop_data SET
             source_url = $2,
@@ -102,15 +103,12 @@ class EOPDataImporter {
             awarding_type = $10,
             procurement_type = $11,
             cpv_code = $12,
-            address = $13,
-            settlement = $14,
-            municipality = $15,
-            lat = $16,
-            lng = $17,
-            start_date = $18,
-            end_date = $19,
-            publication_date = $20,
-            raw_data = $21,
+            settlement = $13,
+            municipality = $14,
+            start_date = $15,
+            end_date = $16,
+            publication_date = $17,
+            raw_data = $18,
             updated_at = CURRENT_TIMESTAMP
           WHERE eop_id = $1
           RETURNING id
@@ -129,11 +127,8 @@ class EOPDataImporter {
           tenderData.awarding_type,
           tenderData.procurement_type,
           tenderData.cpv_code,
-          tenderData.address,
           tenderData.settlement,
           tenderData.municipality,
-          tenderData.lat,
-          tenderData.lng,
           tenderData.start_date,
           tenderData.end_date,
           tenderData.publication_date,

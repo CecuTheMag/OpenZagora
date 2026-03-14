@@ -6,6 +6,8 @@
  * Auto-refreshes data periodically.
  */
 
+import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { formatCurrency } from '../utils/currency.js'
 import { useState, useEffect, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import axios from 'axios'
@@ -18,7 +20,8 @@ import {
   Calendar,
   Info,
   RefreshCw,
-  Layers
+  Layers,
+  LocateFixed
 } from 'lucide-react'
 import L from 'leaflet'
 
@@ -77,23 +80,27 @@ const colors = {
   }
 }
 
-// Data source types
-const DATA_SOURCES = [
-  { id: 'eop', label: 'Public Procurement (EOP)', color: '#3b82f6', icon: Building },
-  { id: 'osm', label: 'Points of Interest (OSM)', color: '#8b5cf6', icon: MapPin }
+// Data source types — labels resolved inside component via t()
+const DATA_SOURCE_IDS = [
+  { id: 'eop', color: '#3b82f6', icon: Building },
+  { id: 'osm', color: '#8b5cf6', icon: MapPin }
 ]
 
-// OSM types to show
-const OSM_TYPES = [
-  { id: 'school', label: 'Schools', color: colors.osm.school },
-  { id: 'hospital', label: 'Hospitals', color: colors.osm.hospital },
-  { id: 'library', label: 'Libraries', color: colors.osm.library },
-  { id: 'bus_stop', label: 'Bus Stops', color: colors.osm.bus_stop },
-  { id: 'park', label: 'Parks', color: colors.osm.park },
-  { id: 'pharmacy', label: 'Pharmacies', color: colors.osm.pharmacy }
+// OSM types — labels resolved inside component via t()
+const OSM_TYPE_IDS = [
+  { id: 'school', color: colors.osm.school },
+  { id: 'hospital', color: colors.osm.hospital },
+  { id: 'library', color: colors.osm.library },
+  { id: 'bus_stop', color: colors.osm.bus_stop },
+  { id: 'park', color: colors.osm.park },
+  { id: 'pharmacy', color: colors.osm.pharmacy }
 ]
 
 function MapPage() {
+  const { t } = useLanguage()
+
+  const DATA_SOURCES = DATA_SOURCE_IDS.map(s => ({ ...s, label: t(`map.source.${s.id}`) }))
+  const OSM_TYPES = OSM_TYPE_IDS.map(s => ({ ...s, label: t(`map.osm.${s.id}`) }))
   const [markers, setMarkers] = useState([])
   const [filteredMarkers, setFilteredMarkers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -107,6 +114,7 @@ function MapPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [osmTypeFilter, setOsmTypeFilter] = useState('all')
   const [isFetching, setIsFetching] = useState(false)
+  const [isGeocoding, setIsGeocoding] = useState(false)
   
   // Stara Zagora coordinates
   const defaultCenter = [42.4257, 25.6344]
@@ -122,50 +130,67 @@ function MapPage() {
       }
       setError(null)
       
-      // Try the unified endpoint first
+      // Multi-source fetch for map
+      const allMarkers = [];
+      
+      // Always try EOP (primary tenders data)
       try {
-        console.log('Fetching from:', `${API_URL}/osm/unified/map?limit=2000`)
-        const response = await axios.get(`${API_URL}/osm/unified/map?limit=2000`, {
-          timeout: 30000
-        })
-        
-        console.log('API Response:', response.data)
-        
-        if (response.data?.success) {
-          const data = response.data.data || []
-          console.log('Markers received:', data.length, 'markers')
-          console.log('Sample marker:', data[0])
-          setMarkers(data)
-          setFilteredMarkers(data)
-          setLastUpdated(new Date())
-          return
+        console.log('Fetching EOP tenders:', `${API_URL}/eop/map?limit=1000`);
+        const eopResponse = await axios.get(`${API_URL}/eop/map?limit=1000`, { timeout: 10000 });
+        if (eopResponse.data?.success) {
+          console.log(`EOP: ${eopResponse.data.data.length} geocoded tenders`);
+          allMarkers.push(...eopResponse.data.data);
         }
-      } catch (apiError) {
-        console.warn('Unified endpoint failed, trying fallback:', apiError.message)
-        
-        // Fallback: try the old projects endpoint
-        try {
-          const projectsResponse = await axios.get(`${API_URL}/projects?limit=1000`, {
-            timeout: 15000
-          })
-          
-          const legacyData = (projectsResponse.data?.data || [])
-            .filter(p => p.lat && p.lng)
-            .map(p => ({
-              ...p,
-              source: 'eop',
-              color: colors.eop[p.status] || colors.eop.active
-            }))
-          
-          setMarkers(legacyData)
-          setFilteredMarkers(legacyData)
-          setLastUpdated(new Date())
-          return
-        } catch (fallbackError) {
-          console.error('Fallback also failed:', fallbackError.message)
-          throw new Error('Unable to connect to server')
-        }
+      } catch (eopError) {
+        console.warn('EOP map fetch failed:', eopError.message);
       }
+      
+      // Try unified OSM (existing)
+      try {
+        console.log('Fetching unified OSM:', `${API_URL}/osm/unified/map?limit=1000`);
+        const unifiedResponse = await axios.get(`${API_URL}/osm/unified/map?limit=1000`, { timeout: 10000 });
+        if (unifiedResponse.data?.success) {
+          console.log(`Unified OSM: ${unifiedResponse.data.data.length} markers`);
+          allMarkers.push(...unifiedResponse.data.data);
+        }
+      } catch (unifiedError) {
+        console.warn('Unified OSM fetch failed:', unifiedError.message);
+      }
+      
+      // Fallback: legacy projects
+      try {
+        console.log('Fetching legacy projects:', `${API_URL}/projects?limit=500`);
+        const projectsResponse = await axios.get(`${API_URL}/projects?limit=500`, { timeout: 10000 });
+        const legacyData = (projectsResponse.data?.data || [])
+          .filter(p => p.lat && p.lng)
+          .map(p => ({
+            ...p,
+            source: 'projects',
+            color: colors.eop[p.status] || '#6b7280'
+          }));
+        console.log(`Projects: ${legacyData.length} with coords`);
+        allMarkers.push(...legacyData);
+      } catch (projectsError) {
+        console.warn('Projects fallback failed:', projectsError.message);
+      }
+      
+      // Deduplicate by source+id
+      const seen = new Set();
+      const deduped = allMarkers.filter(m => {
+        const k = `${m.source}-${m.id}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+
+      console.log(`Total markers loaded: ${deduped.length} (${allMarkers.length} before dedup)`);
+      if (deduped.length === 0) {
+        throw new Error('No map data available - run "Fetch EOP Data" first');
+      }
+      
+      setMarkers(deduped);
+      setFilteredMarkers(deduped);
+      setLastUpdated(new Date());
     } catch (err) {
       console.error('Error fetching map data:', err)
       setError('Failed to load map data. Please ensure the server is running.')
@@ -226,18 +251,7 @@ function MapPage() {
     setFilteredMarkers(filtered)
   }, [markers, sourceFilter, statusFilter, osmTypeFilter, searchQuery])
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    if (!amount) return 'N/A'
-    return new Intl.NumberFormat('bg-BG', {
-      style: 'currency',
-      currency: 'BGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
-  }
 
-  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleDateString('bg-BG', {
@@ -284,24 +298,47 @@ function MapPage() {
   const triggerDataFetch = async () => {
     try {
       setIsFetching(true)
-      console.log('Triggering EOP data fetch and import...')
-      
-      // Call the new EOP fetch-and-import endpoint
-      const response = await axios.post(`${API_URL}/eop/fetch-and-import`)
-      console.log('EOP fetch completed:', response.data)
-      
-      if (response.data.success) {
-        const { fetch, import: importData, geocode } = response.data.data
-        alert(`EOP Data Updated Successfully!\n\nFetched: ${fetch.total} tenders\nImported: ${importData.imported} new\nUpdated: ${importData.updated} existing\nGeocode: ${geocode.updated} located\n\nRefreshing map...`)
-        setTimeout(() => fetchData(true), 2000)
+      const [eopResponse, osmResponse] = await Promise.allSettled([
+        axios.post(`${API_URL}/eop/fetch-and-import`),
+        axios.post(`${API_URL}/osm/fetch`)
+      ])
+      const eop = eopResponse.status === 'fulfilled' ? eopResponse.value.data : null
+      const osm = osmResponse.status === 'fulfilled' ? osmResponse.value.data : null
+      const lines = []
+      if (eop?.success) {
+        lines.push(`EOP: ${eop.data.import.imported} new, ${eop.data.import.updated} updated tenders`)
       } else {
-        throw new Error('Fetch operation failed')
+        lines.push(`EOP: failed - ${eopResponse.reason?.message || 'unknown error'}`)
       }
+      if (osm?.success) {
+        lines.push(`OSM: ${osm.data.totalSaved} POIs saved (schools, hospitals, libraries, bus stops)`)
+      } else {
+        lines.push(`OSM: failed - ${osmResponse.reason?.message || 'unknown error'}`)
+      }
+      lines.push('\nGeocoding running in background — refresh map in a few minutes.')
+      alert(lines.join('\n'))
+      setTimeout(() => fetchData(true), 2000)
     } catch (error) {
-      console.error('Error triggering EOP fetch:', error)
-      alert('Failed to fetch EOP data: ' + (error.response?.data?.message || error.message))
+      console.error('Error triggering fetch:', error)
+      alert('Failed to fetch data: ' + (error.response?.data?.message || error.message))
     } finally {
       setIsFetching(false)
+    }
+  }
+
+  // Manually trigger geocoding only
+  const triggerGeocode = async () => {
+    try {
+      setIsGeocoding(true)
+      const response = await axios.post(`${API_URL}/eop/geocode`, { method: 'hybrid' })
+      if (response.data.success) {
+        alert(`Geocoding started in background.\nRefresh the map in a few minutes to see new pins.`)
+        setTimeout(() => fetchData(true), 3000)
+      }
+    } catch (error) {
+      alert('Failed to start geocoding: ' + (error.response?.data?.message || error.message))
+    } finally {
+      setIsGeocoding(false)
     }
   }
 
@@ -333,7 +370,7 @@ function MapPage() {
           onClick={() => fetchData()}
           className="mt-4 btn-primary"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     )
@@ -344,9 +381,9 @@ function MapPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Project Map</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('map.title')}</h1>
           <p className="text-gray-600 mt-1">
-            Explore municipal projects and points of interest in Stara Zagora
+            {t('map.description')}
           </p>
         </div>
         
@@ -354,25 +391,34 @@ function MapPage() {
         <div className="flex items-center space-x-2">
           {lastUpdated && (
             <span className="text-sm text-gray-500">
-              Updated: {lastUpdated.toLocaleTimeString('bg-BG')}
+              {t('map.updated')}: {lastUpdated.toLocaleTimeString('bg-BG')}
             </span>
           )}
           <button
             onClick={checkStatus}
             className="btn-secondary flex items-center space-x-2 text-sm"
-            title="Check database status"
+            title={t('map.checkDbStatus')}
           >
             <Info className="h-4 w-4" />
-            <span>Status</span>
+            <span>{t('common.status')}</span>
           </button>
           <button
             onClick={triggerDataFetch}
             disabled={isFetching}
             className="btn-secondary flex items-center space-x-2"
-            title="Fetch fresh data from external sources"
+            title={t('map.fetchFreshData')}
           >
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-            <span>{isFetching ? 'Fetching...' : 'Fetch Data'}</span>
+            <span>{isFetching ? t('common.loading') : t('common.fetchData')}</span>
+          </button>
+          <button
+            onClick={triggerGeocode}
+            disabled={isGeocoding}
+            className="btn-secondary flex items-center space-x-2"
+            title="Run geocoding on unlocated tenders"
+          >
+            <LocateFixed className={`h-4 w-4 ${isGeocoding ? 'animate-pulse' : ''}`} />
+            <span>{isGeocoding ? t('common.loading') : t('map.geocode')}</span>
           </button>
           <button
             onClick={() => fetchData(true)}
@@ -380,7 +426,7 @@ function MapPage() {
             className="btn-secondary flex items-center space-x-2"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <span>{refreshing ? t('common.loading') : t('common.refresh')}</span>
           </button>
         </div>
       </div>
@@ -390,7 +436,7 @@ function MapPage() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Public Tenders</p>
+              <p className="text-sm text-gray-500">{ t('map.publicTenders') }</p>
               <p className="text-2xl font-bold text-blue-600">{eopCount}</p>
             </div>
             <Building className="h-8 w-8 text-blue-200" />
@@ -399,7 +445,7 @@ function MapPage() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Points of Interest</p>
+              <p className="text-sm text-gray-500">{t('map.pointsOfInterest')}</p>
               <p className="text-2xl font-bold text-purple-600">{osmCount}</p>
             </div>
             <MapPin className="h-8 w-8 text-purple-200" />
@@ -408,7 +454,7 @@ function MapPage() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Active Projects</p>
+              <p className="text-sm text-gray-500">{t('map.activeProjects')}</p>
               <p className="text-2xl font-bold text-green-600">
                 {markers.filter(m => m.status === 'active').length}
               </p>
@@ -419,7 +465,7 @@ function MapPage() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Markers</p>
+              <p className="text-sm text-gray-500">{t('map.totalMarkers')}</p>
               <p className="text-2xl font-bold text-gray-600">{markers.length}</p>
             </div>
             <MapPin className="h-8 w-8 text-gray-200" />
@@ -435,7 +481,7 @@ function MapPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search projects, schools, hospitals..."
+              placeholder={t('map.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="input-field pl-10"
@@ -445,7 +491,7 @@ function MapPage() {
           {/* Data Source Filters */}
           <div className="flex items-center space-x-2">
             <Layers className="h-5 w-5 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Sources:</span>
+            <span className="text-sm font-medium text-gray-700">{t('map.sources')}:</span>
             {DATA_SOURCES.map(source => (
               <button
                 key={source.id}
@@ -473,11 +519,11 @@ function MapPage() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="input-field w-36"
               >
-                <option value="all">All Status</option>
-                <option value="planned">Planned</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="all">{t('map.allStatus')}</option>
+                <option value="planned">{t('status.planned')}</option>
+                <option value="active">{t('status.active')}</option>
+                <option value="completed">{t('status.completed')}</option>
+                <option value="cancelled">{t('status.cancelled')}</option>
               </select>
             </div>
           )}
@@ -490,7 +536,7 @@ function MapPage() {
                 onChange={(e) => setOsmTypeFilter(e.target.value)}
                 className="input-field w-36"
               >
-                <option value="all">All Types</option>
+                <option value="all">{t('map.allTypes')}</option>
                 {OSM_TYPES.map(type => (
                   <option key={type.id} value={type.id}>{type.label}</option>
                 ))}
@@ -501,8 +547,8 @@ function MapPage() {
 
         {/* Results count */}
         <p className="text-sm text-gray-500 mt-3">
-          Showing {filteredMarkers.length} of {markers.length} markers
-          {lastUpdated && ` • Auto-refreshes every ${AUTO_REFRESH_INTERVAL / 60000} minutes`}
+          {t('map.showing', { filtered: filteredMarkers.length, total: markers.length })}
+          {lastUpdated && ` • ${t('map.autoRefresh', { min: AUTO_REFRESH_INTERVAL / 60000 })}`}
         </p>
       </div>
 
@@ -520,9 +566,9 @@ function MapPage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
-            {filteredMarkers.map((marker) => (
+            {filteredMarkers.map((marker, idx) => (
               <Marker
-                key={marker.id}
+                key={`${marker.source}-${marker.id ?? idx}`}
                 position={[parseFloat(marker.lat), parseFloat(marker.lng)]}
                 icon={createCustomIcon(getMarkerColor(marker))}
               >
@@ -586,7 +632,7 @@ function MapPage() {
                             rel="noopener noreferrer"
                             className="mt-3 block text-sm text-blue-600 hover:underline"
                           >
-                            View Source →
+                            {t('map.viewSource')} →
                           </a>
                         )}
                       </>
@@ -615,61 +661,43 @@ function MapPage() {
       <div className="card">
         <div className="flex items-center space-x-2 mb-3">
           <Info className="h-5 w-5 text-gray-500" />
-          <h3 className="font-semibold text-gray-900">Map Legend</h3>
+          <h3 className="font-semibold text-gray-900">{t('map.legend')}</h3>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* EOP Legend */}
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Public Procurement (EOP)</h4>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">{t('map.source.eop')}</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="flex items-center">
                 <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow mr-2"></div>
-                <span>Completed</span>
+                <span>{t('status.completed')}</span>
               </div>
               <div className="flex items-center">
                 <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow mr-2"></div>
-                <span>Active</span>
+                <span>{t('status.active')}</span>
               </div>
               <div className="flex items-center">
                 <div className="w-4 h-4 rounded-full bg-amber-500 border-2 border-white shadow mr-2"></div>
-                <span>Planned</span>
+                <span>{t('status.planned')}</span>
               </div>
               <div className="flex items-center">
                 <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow mr-2"></div>
-                <span>Cancelled</span>
+                <span>{t('status.cancelled')}</span>
               </div>
             </div>
           </div>
 
           {/* OSM Legend */}
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Points of Interest (OSM)</h4>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">{t('map.source.osm')}</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-purple-500 border-2 border-white shadow mr-2"></div>
-                <span>Schools</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow mr-2"></div>
-                <span>Hospitals</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-sky-500 border-2 border-white shadow mr-2"></div>
-                <span>Libraries</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-orange-500 border-2 border-white shadow mr-2"></div>
-                <span>Bus Stops</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow mr-2"></div>
-                <span>Parks</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-pink-500 border-2 border-white shadow mr-2"></div>
-                <span>Pharmacies</span>
-              </div>
+              {OSM_TYPE_IDS.map(type => (
+                <div key={type.id} className="flex items-center">
+                  <div className="w-4 h-4 rounded-full border-2 border-white shadow mr-2" style={{ backgroundColor: type.color }}></div>
+                  <span>{t(`map.osm.${type.id}`)}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -677,14 +705,14 @@ function MapPage() {
 
       {/* Data Sources Info */}
       <div className="card bg-blue-50 border-blue-200">
-        <h3 className="font-semibold text-blue-900 mb-2">📡 Data Sources</h3>
+        <h3 className="font-semibold text-blue-900 mb-2">📡 {t('map.dataSources')}</h3>
         <div className="text-sm text-blue-800 space-y-1">
-          <p>• <strong>ЦАИС ЕОП (eop.bg)</strong> — Public procurement contracts (scraped automatically)</p>
-          <p>• <strong>OpenStreetMap</strong> — Streets, buildings, bus stops, schools (via Overpass API)</p>
-          <p>• <strong>data.egov.bg</strong> — Bulgarian government open data</p>
+          <p>• <strong>ЦАИС ЕОП (eop.bg)</strong> — {t('map.eopDesc')}</p>
+          <p>• <strong>OpenStreetMap</strong> — {t('map.osmDesc')}</p>
+          <p>• <strong>data.egov.bg</strong> — {t('map.egovDesc')}</p>
         </div>
         <p className="text-xs text-blue-600 mt-2">
-          Data is automatically refreshed every {AUTO_REFRESH_INTERVAL / 60000} minutes. Last update: {lastUpdated?.toLocaleString('bg-BG') || 'Never'}
+          {t('map.autoRefreshNote', { min: AUTO_REFRESH_INTERVAL / 60000 })} {t('map.lastUpdate')}: {lastUpdated?.toLocaleString('bg-BG') || t('map.never')}
         </p>
       </div>
     </div>

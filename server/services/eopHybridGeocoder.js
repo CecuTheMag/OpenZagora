@@ -1,10 +1,3 @@
-/**
- * Hybrid EOP Geocoder
- * 1. Extract exact addresses (ул, бул, etc.) -> OpenStreetMap API
- * 2. Extract location names -> OpenStreetMap API  
- * 3. AI categorization fallback
- */
-
 const { Pool } = require('pg');
 const axios = require('axios');
 
@@ -16,212 +9,146 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres',
 });
 
-class EOPHybridGeocoder {
-  constructor() {
-    this.addressPatterns = [
-      /(?:ул\.?|улица)\s*[„"]([^„"]+)[„"]\s*№?\s*(\d+)/gi,
-      /(?:бул\.?|булевард)\s*[„"]([^„"]+)[„"]\s*№?\s*(\d+)/gi,
-      /(?:пл\.?|площад)\s*[„"]([^„"]+)[„"]/gi,
-      /административен адрес:\s*([^,\n]+)/gi
-    ];
-    
-    this.locationPatterns = [
-      /(?:в|на)\s+([А-Я][а-я]+(?:\s+[А-Я][а-я]+)*)\s*(?:,|$)/g,
-      /(?:зоопарк|стадион|болница|гара|летище|пазар|автогара|училище|детска градина|парк)/gi,
-      /(?:кв\.?\s*|жк\.?\s*)([А-Я][а-я\s]+)/gi
-    ];
+const BOUNDS = { minLat: 42.35, maxLat: 42.50, minLng: 25.55, maxLng: 25.75 };
 
-    this.aiCategories = {
-      'училище|детск|образован': { lat: 42.4320, lng: 25.6180, name: 'Образователен район' },
-      'спорт|стадион|игрищ|фитнес': { lat: 42.4100, lng: 25.6200, name: 'Спортен район' },
-      'здрав|болниц|медицин': { lat: 42.4200, lng: 25.6100, name: 'Медицински район' },
-      'парк|озелен|градин|дърв': { lat: 42.4380, lng: 25.6420, name: 'Зелени площи' },
-      'промишлен|индустриал|завод|машин': { lat: 42.4150, lng: 25.6500, name: 'Промишлена зона' },
-      'жилищн|многофамилн|сграда': { lat: 42.4180, lng: 25.6280, name: 'Жилищен район' }
-    };
-  }
+// All quote characters used in Bulgarian tender names:
+// „ " (typographic low/high), " " (curly), « » (guillemets), " (straight)
+const OQ = '[\u201e\u201c\u00ab\u201d\u00bb"]';
+const CQ = '[\u201d\u201c\u00bb\u201e\u00ab"]';
+const NOQ = '[^\u201e\u201c\u00ab\u201d\u00bb"]+';
 
-  async geocodeWithOSM(query) {
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Стара Загора, България')}&limit=1`;
-      const response = await axios.get(url, {
-        headers: { 'User-Agent': 'OpenZagora/1.0' }
-      });
-      
-      if (response.data?.[0]) {
-        const result = response.data[0];
-        return {
-          lat: parseFloat(result.lat),
-          lng: parseFloat(result.lon),
-          confidence: parseFloat(result.importance) || 0.5,
-          display_name: result.display_name
-        };
-      }
-    } catch (error) {
-      console.log(`OSM geocoding failed for: ${query}`);
+function extractAddress(name) {
+  // Pattern 1: ул./бул. <quote>Name<quote> № 12  (quoted street + number)
+  const quotedStreet = new RegExp(
+    '(?:ул\\.?\\s*|бул\\.?\\s*|улица\\s*|булевард\\s*)' +
+    OQ + '(' + NOQ + ')' + CQ +
+    '\\s*(?:\u2116\\s*)?(\\d+)',
+    'gi'
+  );
+
+  // Pattern 2: административен адрес ... ул./бул. <quote>Name<quote> № 12
+  const adminAddr = new RegExp(
+    'административен адрес[^\\n]{0,60}?' +
+    '(?:ул\\.?\\s*|бул\\.?\\s*)' +
+    OQ + '(' + NOQ + ')' + CQ +
+    '\\s*(?:\u2116\\s*)?(\\d+)',
+    'gi'
+  );
+
+  // Pattern 3: ул./бул. Name № 12  (no quotes, explicit № sign)
+  const noQuoteStreet = /(?:ул\.?\s*|бул\.?\s*|улица\s*|булевард\s*)([А-Яа-яёЁ][А-Яа-яёЁA-Za-z\s\-]{2,40})\s*№\s*(\d+)/gi;
+
+  // Pattern 4: пл. <quote>Name<quote>  (square, no number needed)
+  const square = new RegExp(
+    '(?:пл\\.?\\s*|площад\\s*)' + OQ + '(' + NOQ + ')' + CQ,
+    'gi'
+  );
+
+  for (const pattern of [quotedStreet, adminAddr, noQuoteStreet, square]) {
+    pattern.lastIndex = 0;
+    const m = pattern.exec(name);
+    if (m) {
+      const street = m[1].trim();
+      const number = m[2] ? m[2].trim() : '';
+      return number ? `${street} ${number}` : street;
     }
+  }
+  return null;
+}
+
+async function geocodeAddress(address) {
+  try {
+    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: {
+        q: `${address}, Стара Загора, България`,
+        format: 'json',
+        limit: 1,
+        countrycodes: 'bg',
+        bounded: 1,
+        viewbox: `${BOUNDS.minLng},${BOUNDS.minLat},${BOUNDS.maxLng},${BOUNDS.maxLat}`,
+      },
+      headers: { 'User-Agent': 'OpenZagora/1.0' },
+      timeout: 8000,
+    });
+
+    const result = response.data?.[0];
+    if (!result) return null;
+
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+
+    if (lat < BOUNDS.minLat || lat > BOUNDS.maxLat || lng < BOUNDS.minLng || lng > BOUNDS.maxLng) {
+      return null;
+    }
+
+    return { lat, lng };
+  } catch (e) {
     return null;
   }
+}
 
-  extractAddresses(text) {
-    const addresses = [];
-    
-    for (const pattern of this.addressPatterns) {
-      let match;
-      while ((match = pattern.exec(text)) !== null) {
-        addresses.push({
-          type: 'address',
-          street: match[1]?.trim(),
-          number: match[2] || '',
-          full: `${match[1]?.trim()} ${match[2] || ''}`.trim()
-        });
-      }
-    }
-    
-    return addresses;
-  }
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-  extractLocations(text) {
-    const locations = [];
-    
-    for (const pattern of this.locationPatterns) {
-      let match;
-      while ((match = pattern.exec(text)) !== null) {
-        if (match[1] && match[1].length > 2) {
-          locations.push({
-            type: 'location',
-            name: match[1].trim(),
-            full: match[0].trim()
-          });
-        }
-      }
-    }
-    
-    return locations;
-  }
-
-  aiCategorize(text) {
-    const lowerText = text.toLowerCase();
-    
-    for (const [pattern, coords] of Object.entries(this.aiCategories)) {
-      if (new RegExp(pattern, 'i').test(lowerText)) {
-        return {
-          type: 'ai_category',
-          ...coords,
-          confidence: 0.3
-        };
-      }
-    }
-    
-    return {
-      type: 'ai_category',
-      lat: 42.4257,
-      lng: 25.6344,
-      name: 'Център',
-      confidence: 0.2
-    };
-  }
-
-
-    const text = `${title} ${description || ''}`;
-    
-    // Step 1: Try exact addresses
-    const addresses = this.extractAddresses(text);
-    for (const addr of addresses) {
-      const coords = await this.geocodeWithOSM(addr.full);
-      if (coords && coords.confidence > 0.3) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limit
-        return {
-          lat: coords.lat,
-          lng: coords.lng,
-          address: addr.full,
-          source: 'exact_address',
-          confidence: coords.confidence
-        };
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    // Step 2: Try location names
-    const locations = this.extractLocations(text);
-    for (const loc of locations) {
-      const coords = await this.geocodeWithOSM(loc.name);
-      if (coords && coords.confidence > 0.2) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return {
-          lat: coords.lat,
-          lng: coords.lng,
-          address: loc.name,
-          source: 'location_name',
-          confidence: coords.confidence
-        };
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-
-    return {
-      lat: aiResult.lat,
-      lng: aiResult.lng,
-      address: aiResult.name,
-      source: 'ai_category',
-      confidence: aiResult.confidence
-    };
-  }
-
+class EOPHybridGeocoder {
   async geocodeAll() {
     try {
-      // Check if table exists first
       const tableCheck = await pool.query(`
         SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'eop_data'
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'eop_data'
         ) as exists
       `);
-      
       if (!tableCheck.rows[0].exists) {
-        console.log('⚠️ eop_data table does not exist, skipping geocoding');
-        return { updated: 0, exact: 0, locations: 0, ai: 0 };
+        console.log('eop_data table does not exist, skipping geocoding');
+        return { updated: 0, skipped: 0 };
       }
 
-      // Get ALL records without coordinates (not just 50!)
-      const result = await pool.query(
-        'SELECT id, title, description FROM eop_data WHERE lat IS NULL OR lng IS NULL'
-      );
+      const { rows } = await pool.query('SELECT id, title FROM eop_data WHERE lat IS NULL OR lng IS NULL');
+      console.log(`Geocoding ${rows.length} EOP records without coordinates...`);
 
-      console.log(`🎯 Hybrid geocoding up to ${result.rows.length} EOP records...`);
-      
       let updated = 0;
-      let exact = 0;
-      let locations = 0;
-      let ai = 0;
-      
-      for (const record of result.rows) {
-        const location = await this.findBestLocation(record.title, record.description);
-        
+      let skipped = 0;
+
+      for (const record of rows) {
+        const address = extractAddress(record.title || '');
+
+        if (!address) {
+          skipped++;
+          continue;
+        }
+
+        const coords = await geocodeAddress(address);
+        await delay(1100);
+
+        if (!coords) {
+          skipped++;
+          continue;
+        }
+
         await pool.query(
           'UPDATE eop_data SET lat = $1, lng = $2, address = $3 WHERE id = $4',
-          [location.lat, location.lng, location.address, record.id]
+          [coords.lat, coords.lng, address, record.id]
         );
-        
-        if (location.source === 'exact_address') exact++;
-        else if (location.source === 'location_name') locations++;
-        else ai++;
-        
+
         updated++;
-        if (updated % 10 === 0) {
-          console.log(`✓ Processed ${updated}/${result.rows.length} records...`);
-        }
+        console.log(`  [${updated}] ${address} -> ${coords.lat}, ${coords.lng}`);
       }
-      
-      console.log(`✅ Hybrid geocoding completed: ${exact} exact, ${locations} locations, ${ai} AI`);
-      return { updated, exact, locations, ai };
-      
+
+      console.log(`Geocoding done: ${updated} placed, ${skipped} skipped`);
+      return { updated, skipped };
+
     } catch (error) {
-      console.error('Hybrid geocoding failed:', error);
+      console.error('Geocoding failed:', error);
       throw error;
     }
+  }
+
+  async clearAndGeocodeAll() {
+    await pool.query('UPDATE eop_data SET lat = NULL, lng = NULL, address = NULL');
+    console.log('Cleared all EOP coordinates');
+    return this.geocodeAll();
   }
 }
 

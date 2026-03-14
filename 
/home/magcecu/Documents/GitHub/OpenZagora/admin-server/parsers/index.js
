@@ -1,6 +1,0 @@
-
-module.exports = {
-  // Parser registry - add parsers here
-  parsers: {}
-};
-

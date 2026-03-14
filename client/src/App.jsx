@@ -6,6 +6,7 @@
  */
 
 import { Routes, Route } from 'react-router-dom'
+import { useLanguage } from './contexts/LanguageContext.jsx'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import MapPage from './pages/MapPage'
@@ -13,6 +14,7 @@ import BudgetPage from './pages/BudgetPage'
 import CouncilPage from './pages/CouncilPage'
 
 function App() {
+  const { t } = useLanguage()
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation bar - visible on all pages */}
@@ -40,17 +42,17 @@ function App() {
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-600 text-sm">
-              © 2024 Open Zagora. Municipal Transparency Dashboard.
+              {t('footer.copyright')}
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-gray-500 hover:text-primary-600 text-sm">
-                About
+                {t('footer.about')}
               </a>
               <a href="#" className="text-gray-500 hover:text-primary-600 text-sm">
-                API Documentation
+                {t('footer.apiDocs')}
               </a>
               <a href="#" className="text-gray-500 hover:text-primary-600 text-sm">
-                Contact
+                {t('footer.contact')}
               </a>
             </div>
           </div>

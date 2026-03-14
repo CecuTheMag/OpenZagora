@@ -1,9 +1,0 @@
-
-// Dummy parser to prevent crashes
-// Real parsers should be added from ADMIN_SETUP.md
-const dummyParser = {
-  parse: (data) => ({ success: true, data: [] })
-};
-
-module.exports = dummyParser;
-

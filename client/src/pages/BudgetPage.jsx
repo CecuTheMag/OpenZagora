@@ -10,6 +10,8 @@
  * - Documents: List of uploaded budget documents
  */
 
+import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { formatCurrency, formatMillions } from '../utils/currency.js'
 import { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import {
@@ -109,22 +111,22 @@ const FUNCTION_COLORS = {
   '14': '#f59e0b', // Other
 }
 
-// Tab definitions
-const TABS = [
-  { id: 'summary', label: 'Summary', icon: PieChartIcon },
-  { id: 'income', label: 'Income', icon: ArrowUpDown },
-  { id: 'expenses', label: 'Expenses', icon: Building },
-  { id: 'indicators', label: 'Indicators', icon: BarChart3 },
-  { id: 'loans', label: 'Loans', icon: CreditCard },
-  { id: 'villages', label: 'Villages', icon: MapPin },
-  { id: 'forecasts', label: 'Forecasts', icon: TrendIcon },
-  { id: 'documents', label: 'Documents', icon: FolderOpen },
-]
-
 // Population estimate for Stara Zagora municipality (can be updated from actual data)
 const MUNICIPALITY_POPULATION = 320000
 
 function BudgetPage() {
+  const { t } = useLanguage()
+
+  const TABS = [
+    { id: 'summary', label: t('tabs.summary'), icon: PieChartIcon },
+    { id: 'income', label: t('tabs.income'), icon: ArrowUpDown },
+    { id: 'expenses', label: t('tabs.expenses'), icon: Building },
+    { id: 'indicators', label: t('tabs.indicators'), icon: BarChart3 },
+    { id: 'loans', label: t('tabs.loans'), icon: CreditCard },
+    { id: 'villages', label: t('tabs.villages'), icon: MapPin },
+    { id: 'forecasts', label: t('tabs.forecasts'), icon: TrendIcon },
+    { id: 'documents', label: t('tabs.documents'), icon: FolderOpen },
+  ]
   const [activeTab, setActiveTab] = useState('summary')
   const [years, setYears] = useState([])
   const [selectedYear, setSelectedYear] = useState(2025)
@@ -197,22 +199,6 @@ function BudgetPage() {
     }
   }
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    if (amount === null || amount === undefined) return 'N/A'
-    return new Intl.NumberFormat('bg-BG', {
-      style: 'currency',
-      currency: 'BGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
-  }
-
-  // Format large numbers (millions)
-  const formatMillions = (amount) => {
-    if (!amount) return '0'
-    return `${(amount / 1000000).toFixed(1)}M`
-  }
 
   // Format percentage
   const formatPercent = (value) => {
@@ -339,12 +325,12 @@ function BudgetPage() {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <p className="text-red-700">{error}</p>
-        <button 
-          onClick={fetchAllData}
-          className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-        >
-          Retry
-        </button>
+          <button 
+            onClick={fetchAllData}
+            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            {t('common.retry')}
+          </button>
       </div>
     )
   }
@@ -354,9 +340,9 @@ function BudgetPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Municipal Budget {selectedYear}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('budget.title', { year: selectedYear })}</h1>
           <p className="text-gray-600 mt-1">
-            Budget allocation, spending, and financial reports
+            {t('budget.description')}
           </p>
         </div>
 
@@ -516,6 +502,7 @@ function BudgetPage() {
 // ENHANCED SUMMARY TAB COMPONENT
 // ==========================================
 function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, villageData, chartType, setChartType, formatCurrency, formatMillions, formatPercent, CustomTooltip, COLORS, FUNCTION_COLORS, selectedYear }) {
+  const { t } = useLanguage()
   
   // Prepare income chart data grouped by category
   const incomeChartData = useMemo(() => {
@@ -616,9 +603,9 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Total Income</p>
+        <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">{t('cards.totalIncome')}</p>
               <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(totals.income)}</p>
-              <p className="text-xs text-blue-600 mt-1">{incomeData.length} sources</p>
+              <p className="text-xs text-blue-600 mt-1">{t('label.items', { count: incomeData.length })}</p>
             </div>
             <div className="p-2 bg-blue-200 rounded-lg">
               <ArrowUpDown className="h-5 w-5 text-blue-700" />
@@ -630,9 +617,9 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-5 border border-red-200 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-red-600 uppercase tracking-wide">Total Expenses</p>
+        <p className="text-xs font-medium text-red-600 uppercase tracking-wide">{t('cards.totalExpenses')}</p>
               <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(totals.expenses)}</p>
-              <p className="text-xs text-red-600 mt-1">{expenseData.length} line items</p>
+              <p className="text-xs text-red-600 mt-1">{t('label.items', { count: expenseData.length })}</p>
             </div>
             <div className="p-2 bg-red-200 rounded-lg">
               <TrendingDown className="h-5 w-5 text-red-700" />
@@ -644,10 +631,10 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         <div className={`bg-gradient-to-br rounded-xl p-5 border shadow-sm ${balanceBg}`}>
           <div className="flex items-start justify-between">
             <div>
-              <p className={`text-xs font-medium ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'} uppercase tracking-wide`}>Budget Balance</p>
+              <p className={`text-xs font-medium ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'} uppercase tracking-wide`}>{t('cards.budgetBalance')}</p>
               <p className={`text-2xl font-bold mt-1 ${balanceColor}`}>{formatCurrency(totals.balance)}</p>
               <p className={`text-xs mt-1 ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                {totals.balance >= 0 ? 'Surplus' : 'Deficit'}
+                {totals.balance >= 0 ? t('label.surplus') : t('label.deficit')}
               </p>
             </div>
             <div className={`p-2 rounded-lg ${totals.balance >= 0 ? 'bg-green-200' : 'bg-orange-200'}`}>
@@ -664,7 +651,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">Utilization Rate</p>
+              <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">{t('cards.utilizationRate')}</p>
               <p className="text-2xl font-bold text-purple-900 mt-1">{totals.utilizationRate}%</p>
               <div className="mt-2 w-full bg-purple-200 rounded-full h-1.5">
                 <div 
@@ -685,17 +672,17 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         {/* Active Loans */}
         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Active Loans</span>
+            <span className="text-sm text-gray-500">{t('cards.activeLoans')}</span>
             <CreditCard className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-xl font-bold text-gray-900">{formatCurrency(loanSummary.totalOriginal)}</p>
-          <p className="text-xs text-gray-500 mt-1">{loanSummary.count} loans • {formatCurrency(loanSummary.totalRemaining)} remaining</p>
+          <p className="text-xs text-gray-500 mt-1">{t('label.loans', { count: loanSummary.count, remaining: formatCurrency(loanSummary.totalRemaining) })}</p>
         </div>
 
         {/* Village Budgets */}
         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Village Allocations</span>
+            <span className="text-sm text-gray-500">{t('cards.villageAllocations')}</span>
             <MapPin className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-xl font-bold text-gray-900">{formatCurrency(villageData.reduce((s, v) => s + parseFloat(v.total_amount || 0), 0))}</p>
@@ -705,23 +692,23 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         {/* Indicators Performance */}
         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Indicators</span>
+            <span className="text-sm text-gray-500">{t('tabs.indicators')}</span>
             <Target className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-xl font-bold text-gray-900">{indicatorSummary.executionRate}%</p>
-          <p className="text-xs text-gray-500 mt-1">{indicatorSummary.count} indicators • {formatCurrency(indicatorSummary.totalExecuted)} executed</p>
+          <p className="text-xs text-gray-500 mt-1">{t('label.indicators', { count: indicatorSummary.count, executed: formatCurrency(indicatorSummary.totalExecuted) })}</p>
         </div>
 
         {/* Budget Health Score */}
         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Budget Health</span>
+            <span className="text-sm text-gray-500">{t('cards.budgetHealth')}</span>
             <Activity className="h-4 w-4 text-gray-400" />
           </div>
           <p className={`text-xl font-bold ${parseFloat(totals.utilizationRate) <= 100 ? 'text-green-600' : 'text-red-600'}`}>
-            {parseFloat(totals.utilizationRate) <= 100 ? 'Good' : 'Over Budget'}
+            {parseFloat(totals.utilizationRate) <= 100 ? t('label.good') : t('label.overBudget')}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{parseFloat(totals.utilizationRate) <= 100 ? `${(100 - parseFloat(totals.utilizationRate)).toFixed(1)}% remaining` : 'Expenses exceed income'}</p>
+          <p className="text-xs text-gray-500 mt-1">{parseFloat(totals.utilizationRate) <= 100 ? t('label.remaining', { pct: (100 - parseFloat(totals.utilizationRate)).toFixed(1) }) : t('label.exceedsIncome')}</p>
         </div>
       </div>
 
@@ -730,8 +717,8 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         {/* Income Distribution Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Income Distribution</h3>
-            <span className="text-sm text-gray-500">{formatMillions(totals.income)} BGN</span>
+            <h3 className="text-lg font-semibold text-gray-900">{t('chart.incomeDistribution')}</h3>
+            <span className="text-sm text-gray-500">{formatMillions(totals.income)}</span>
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -784,8 +771,8 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         {/* Expense Distribution Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Expenses by Function</h3>
-            <span className="text-sm text-gray-500">{formatMillions(totals.expenses)} BGN</span>
+            <h3 className="text-lg font-semibold text-gray-900">{t('chart.expensesByFunction')}</h3>
+            <span className="text-sm text-gray-500">{formatMillions(totals.expenses)}</span>
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -848,7 +835,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
             }`}
           >
             <PieChartIcon className="h-4 w-4" />
-            <span className="text-sm font-medium">Pie Chart</span>
+            <span className="text-sm font-medium">{t('actions.pieChart')}</span>
           </button>
           <button
             onClick={() => setChartType('bar')}
@@ -859,7 +846,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
             }`}
           >
             <BarChart3 className="h-4 w-4" />
-            <span className="text-sm font-medium">Bar Chart</span>
+            <span className="text-sm font-medium">{t('actions.barChart')}</span>
           </button>
         </div>
       </div>
@@ -871,18 +858,18 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
               <ArrowUpDown className="h-5 w-5 text-blue-600 mr-2" />
-              Top Income Sources
+              {t('cards.incomeSources')}
             </h3>
-            <span className="text-sm text-gray-500">{topIncomeSources.length} of {incomeData.length}</span>
+            <span className="text-sm text-gray-500">{t('label.of', { count: topIncomeSources.length, total: incomeData.length })}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Code</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Source</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.source')}</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -917,7 +904,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>Total</td>
+                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>{t('table.total')}</td>
                   <td className="py-3 px-4 text-right font-semibold text-gray-900">
                     {formatCurrency(topIncomeSources.reduce((s, i) => s + i.amount, 0))}
                   </td>
@@ -935,18 +922,18 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
               <Building className="h-5 w-5 text-red-600 mr-2" />
-              Top Expense Categories
+              {t('cards.expenseCategories')}
             </h3>
-            <span className="text-sm text-gray-500">{topExpenseCategories.length} functions</span>
+            <span className="text-sm text-gray-500">{t('label.functions', { count: topExpenseCategories.length })}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Code</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Function</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.function')}</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -987,7 +974,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>Total</td>
+                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>{t('table.total')}</td>
                   <td className="py-3 px-4 text-right font-semibold text-gray-900">
                     {formatCurrency(topExpenseCategories.reduce((s, i) => s + i.amount, 0))}
                   </td>
@@ -1004,21 +991,21 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       {/* Complete Income Breakdown Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Table className="h-5 w-5 text-primary-600 mr-2" />
-            Complete Income Breakdown
-          </h3>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Table className="h-5 w-5 text-primary-600 mr-2" />
+              {t('cards.completeIncome')}
+            </h3>
           <span className="text-sm text-gray-500">{incomeData.length} line items</span>
         </div>
         <div className="overflow-x-auto max-h-96">
           <table className="w-full">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Code</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Description</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Category Share</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.name')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.categoryShare')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1060,7 +1047,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
             </tbody>
             <tfoot className="bg-gray-100 font-semibold sticky bottom-0">
               <tr>
-                <td className="py-3 px-4 text-gray-900" colSpan={2}>Total Income</td>
+                <td className="py-3 px-4 text-gray-900" colSpan={2}>{t('label.totalIncome')}</td>
                 <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totals.income)}</td>
                 <td className="py-3 px-4 text-right text-gray-900">100%</td>
                 <td className="py-3 px-4 text-right text-gray-900">-</td>
@@ -1073,20 +1060,20 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       {/* Complete Expense Breakdown Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Table className="h-5 w-5 text-primary-600 mr-2" />
-            Complete Expense Breakdown
-          </h3>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Table className="h-5 w-5 text-primary-600 mr-2" />
+              {t('cards.completeExpenses')}
+            </h3>
           <span className="text-sm text-gray-500">{expenseData.length} line items</span>
         </div>
         <div className="overflow-x-auto max-h-96">
           <table className="w-full">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Function</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Program</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">Amount</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">% of Total</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.function')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.program')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1117,7 +1104,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
             </tbody>
             <tfoot className="bg-gray-100 font-semibold sticky bottom-0">
               <tr>
-                <td className="py-3 px-4 text-gray-900" colSpan={2}>Total Expenses</td>
+                <td className="py-3 px-4 text-gray-900" colSpan={2}>{t('label.totalExpenses')}</td>
                 <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totals.expenses)}</td>
                 <td className="py-3 px-4 text-right text-gray-900">100%</td>
               </tr>
@@ -1126,7 +1113,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         </div>
         {expenseData.length > 100 && (
           <div className="px-6 py-3 bg-gray-50 text-sm text-gray-500 text-center">
-            Showing 100 of {expenseData.length} items. Use search to filter.
+            {t('table.showing', { count: 100, total: expenseData.length })}
           </div>
         )}
       </div>
@@ -1139,6 +1126,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
 // INCOME TAB COMPONENT
 // ==========================================
 function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV, selectedYear }) {
+  const { t } = useLanguage()
   const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
 
   return (
@@ -1149,7 +1137,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search income items..."
+            placeholder={t('search.income')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1164,7 +1152,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
             className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span>{t('common.export')}</span>
           </button>
         </div>
       </div>
@@ -1180,7 +1168,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
                     onClick={() => handleSort('code')}
                     className="flex items-center space-x-1"
                   >
-                    <span>Code</span>
+                    <span>{t('table.code')}</span>
                     {sortConfig.key === 'code' && (
                       sortConfig.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                     )}
@@ -1191,7 +1179,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
                     onClick={() => handleSort('name')}
                     className="flex items-center space-x-1"
                   >
-                    <span>Name</span>
+                    <span>{t('table.name')}</span>
                     {sortConfig.key === 'name' && (
                       sortConfig.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                     )}
@@ -1202,13 +1190,13 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
                     onClick={() => handleSort('amount')}
                     className="flex items-center space-x-1 ml-auto"
                   >
-                    <span>Amount</span>
+                    <span>{t('table.amount')}</span>
                     {sortConfig.key === 'amount' && (
                       sortConfig.direction === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                     )}
                   </button>
                 </th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">% of Total</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.percentTotal')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1241,7 +1229,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
             </tbody>
             <tfoot className="bg-gray-50 font-semibold">
               <tr>
-                <td className="py-3 px-4 text-gray-900" colSpan={2}>Total</td>
+                <td className="py-3 px-4 text-gray-900" colSpan={2}>{t('table.total')}</td>
                 <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totalAmount)}</td>
                 <td className="py-3 px-4 text-right text-gray-900">100%</td>
               </tr>
@@ -1252,7 +1240,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
 
       {data.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No income data found for {selectedYear}
+          {t('label.noIncomeData', { year: selectedYear })}
         </div>
       )}
     </div>
@@ -1263,6 +1251,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
 // EXPENSES TAB COMPONENT
 // ==========================================
 function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV, selectedYear, FUNCTION_COLORS }) {
+  const { t } = useLanguage()
   const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0)
 
   // Group by function
@@ -1292,7 +1281,7 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search expenses..."
+            placeholder={t('search.expenses')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1307,7 +1296,7 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
             className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span>{t('common.export')}</span>
           </button>
         </div>
       </div>
@@ -1354,10 +1343,10 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Function</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Program</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Amount</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">% of Total</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.function')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.program')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.amount')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.percentTotal')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1390,7 +1379,7 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
         </div>
         {data.length > 50 && (
           <div className="px-4 py-3 bg-gray-50 text-sm text-gray-600 text-center">
-            Showing 50 of {data.length} items. Use search to filter.
+            {t('table.showing', { count: 50, total: data.length })}
           </div>
         )}
       </div>
@@ -1402,6 +1391,7 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
 // INDICATORS TAB COMPONENT
 // ==========================================
 function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, formatPercent, exportToCSV, selectedYear }) {
+  const { t } = useLanguage()
   const totalApproved = data.reduce((sum, item) => sum + parseFloat(item.amount_approved || 0), 0)
   const totalExecuted = data.reduce((sum, item) => sum + parseFloat(item.amount_executed || 0), 0)
 
@@ -1434,7 +1424,7 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search indicators..."
+            placeholder={t('search.indicators')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1454,7 +1444,7 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
             className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span>{t('common.export')}</span>
           </button>
         </div>
       </div>
@@ -1490,11 +1480,11 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Indicator</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Department</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Approved</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Executed</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">% Exec.</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.indicator')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.department')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.approved')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.executed')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.percentExec')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1535,6 +1525,7 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
 // LOANS TAB COMPONENT
 // ==========================================
 function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, formatPercent, exportToCSV, selectedYear }) {
+  const { t } = useLanguage()
   const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
 
   // Get unique loan types
@@ -1548,7 +1539,7 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search loans..."
+            placeholder={t('search.loans')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1563,7 +1554,7 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
             className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span>{t('common.export')}</span>
           </button>
         </div>
       </div>
@@ -1593,12 +1584,12 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Type</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Creditor</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Original Amount</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Remaining</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Interest Rate</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Term</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.type')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.creditor')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.originalAmount')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.remaining')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.interestRate')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.term')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1631,7 +1622,7 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
 
       {data.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No loan data found for {selectedYear}
+          {t('label.noLoanData', { year: selectedYear })}
         </div>
       )}
     </div>
@@ -1642,6 +1633,7 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
 // VILLAGES TAB COMPONENT
 // ==========================================
 function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV, selectedYear }) {
+  const { t } = useLanguage()
   const totalAmount = data.reduce((sum, item) => sum + parseFloat(item.total_amount || 0), 0)
 
   return (
@@ -1652,7 +1644,7 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search villages..."
+            placeholder={t('search.villages')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1667,7 +1659,7 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
             className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span>{t('common.export')}</span>
           </button>
         </div>
       </div>
@@ -1706,11 +1698,11 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Code</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Village Name</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">State Funding</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Local Budget</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">Total</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.code')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.villageName')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.stateFunding')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.localBudget')}</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.total')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1736,7 +1728,7 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
             </tbody>
             <tfoot className="bg-gray-50 font-semibold">
               <tr>
-                <td className="py-3 px-4" colSpan={4}>Total</td>
+                <td className="py-3 px-4" colSpan={4}>{t('table.total')}</td>
                 <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(totalAmount)}</td>
               </tr>
             </tfoot>
@@ -1746,7 +1738,7 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
 
       {data.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No village data found for {selectedYear}
+          {t('label.noVillageData', { year: selectedYear })}
         </div>
       )}
     </div>
@@ -1757,16 +1749,12 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
 // FORECASTS TAB COMPONENT
 // ==========================================
 function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, formatCurrency, exportToCSV }) {
+  const { t } = useLanguage()
   const total2024 = data.reduce((sum, item) => sum + parseFloat(item.amount_2024 || 0), 0)
   const total2025 = data.reduce((sum, item) => sum + parseFloat(item.amount_2025 || 0), 0)
   const total2026 = data.reduce((sum, item) => sum + parseFloat(item.amount_2026 || 0), 0)
   const total2027 = data.reduce((sum, item) => sum + parseFloat(item.amount_2027 || 0), 0)
   const total2028 = data.reduce((sum, item) => sum + parseFloat(item.amount_2028 || 0), 0)
-
-  const formatMillions = (amount) => {
-    if (!amount) return '0'
-    return `${(amount / 1000000).toFixed(1)}M`
-  }
 
   return (
     <div className="space-y-4">
@@ -1776,7 +1764,7 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search forecasts..."
+            placeholder={t('search.forecasts')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1789,7 +1777,7 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
             className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span>Export</span>
+            <span>{t('common.export')}</span>
           </button>
         </div>
       </div>
@@ -1797,30 +1785,30 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
       {/* Forecast Year Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-          <p className="text-sm text-gray-500">2024 (Actual)</p>
+          <p className="text-sm text-gray-500">{t('label.actual2024')}</p>
           <p className="text-xl font-bold text-gray-900">{formatCurrency(total2024)}</p>
         </div>
         <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-          <p className="text-sm text-blue-600">2025 (Plan)</p>
+          <p className="text-sm text-blue-600">{t('label.plan2025')}</p>
           <p className="text-xl font-bold text-blue-900">{formatCurrency(total2025)}</p>
         </div>
         <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-          <p className="text-sm text-purple-600">2026 (Forecast)</p>
+          <p className="text-sm text-purple-600">{t('label.forecast2026')}</p>
           <p className="text-xl font-bold text-purple-900">{formatCurrency(total2026)}</p>
         </div>
         <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-          <p className="text-sm text-orange-600">2027 (Forecast)</p>
+          <p className="text-sm text-orange-600">{t('label.forecast2027')}</p>
           <p className="text-xl font-bold text-orange-900">{formatCurrency(total2027)}</p>
         </div>
         <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-          <p className="text-sm text-green-600">2028 (Forecast)</p>
+          <p className="text-sm text-green-600">{t('label.forecast2028')}</p>
           <p className="text-xl font-bold text-green-900">{formatCurrency(total2028)}</p>
         </div>
       </div>
 
       {/* Forecast Chart */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Budget Forecast Trend</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('chart.forecastTrend')}</h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={[
@@ -1846,8 +1834,8 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Code</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">Item Name</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.code')}</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.itemName')}</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">2024</th>
                 <th className="text-right py-3 px-4 font-semibold text-blue-900 text-sm">2025</th>
                 <th className="text-right py-3 px-4 font-semibold text-purple-900 text-sm">2026</th>
@@ -1876,14 +1864,14 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
         </div>
         {data.length > 50 && (
           <div className="px-4 py-3 bg-gray-50 text-sm text-gray-600 text-center">
-            Showing 50 of {data.length} items. Use search to filter.
+            {t('table.showing', { count: 50, total: data.length })}
           </div>
         )}
       </div>
 
       {data.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No forecast data found
+          {t('label.noForecastData')}
         </div>
       )}
     </div>
@@ -1894,6 +1882,7 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
 // DOCUMENTS TAB COMPONENT
 // ==========================================
 function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selectedYear }) {
+  const { t } = useLanguage()
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   
@@ -1962,7 +1951,7 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search documents..."
+            placeholder={t('search.documents')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -1996,27 +1985,27 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
               </h4>
               <div className="space-y-1 text-sm text-gray-500">
                 <div className="flex items-center justify-between">
-                  <span>Year:</span>
+                  <span>{t('table.year')}:</span>
                   <span className="font-medium text-gray-700">{doc.year}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Type:</span>
+                  <span>{t('table.type')}:</span>
                   <span className="font-medium text-gray-700">{doc.document_type}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Subtype:</span>
+                  <span>{t('table.subtype')}:</span>
                   <span className="font-medium text-gray-700">{doc.document_subtype || 'N/A'}</span>
                 </div>
                 {doc.file_size && (
                   <div className="flex items-center justify-between">
-                    <span>Size:</span>
+                    <span>{t('table.size')}:</span>
                     <span className="font-medium text-gray-700">{(doc.file_size / 1024).toFixed(1)} KB</span>
                   </div>
                 )}
               </div>
               <div className="mt-3 pt-3 border-t border-gray-100 flex items-center text-primary-600 text-sm font-medium">
                 <FileText className="h-4 w-4 mr-1" />
-                Click to view PDF
+                {t('label.clickToView')}
               </div>
             </div>
           )
@@ -2025,7 +2014,7 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
 
       {filteredDocs.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          {searchTerm ? 'No documents match your search' : `No documents found for ${selectedYear}`}
+          {searchTerm ? t('label.noSearchResults') : t('label.noDocuments', { year: selectedYear })}
         </div>
       )}
 
@@ -2091,8 +2080,8 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 font-medium">PDF not available</p>
-                    <p className="text-gray-400 text-sm mt-1">The document file could not be found</p>
+                    <p className="text-gray-600 font-medium">{t('label.pdfNotAvailable')}</p>
+                    <p className="text-gray-400 text-sm mt-1">{t('label.pdfNotFound')}</p>
                   </div>
                 </div>
               )}

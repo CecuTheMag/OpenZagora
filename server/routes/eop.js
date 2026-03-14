@@ -133,34 +133,37 @@ router.post('/import', async (req, res) => {
  */
 router.post('/geocode', async (req, res) => {
   try {
-    const { method = 'district', limit = 50 } = req.body;
-    
+    const { method = 'hybrid', limit = 50 } = req.body || {};
+
     console.log(`🗺️ Starting EOP geocoding (${method})...`);
-    
-    let updated;
-    if (method === 'hybrid') {
-      updated = await eopHybridGeocoder.geocodeAll();
+
+    let geocodeFn;
+    if (method === 'hybrid' || method === 'hybrid-reset') {
+      geocodeFn = method === 'hybrid-reset'
+        ? () => eopHybridGeocoder.clearAndGeocodeAll()
+        : () => eopHybridGeocoder.geocodeAll();
     } else if (method === 'exact') {
-      updated = await eopExactGeocoder.geocodeAll();
+      geocodeFn = () => eopExactGeocoder.geocodeAll();
     } else if (method === 'ai') {
-      updated = await eopAIGeocoder.geocodeAll();
+      geocodeFn = () => eopAIGeocoder.geocodeAll();
     } else if (method === 'district') {
       const eopDistrictMapper = require('../services/eopDistrictMapper');
-      updated = await eopDistrictMapper.mapToDistricts();
+      geocodeFn = () => eopDistrictMapper.mapToDistricts();
     } else {
-      updated = await eopGeocoder.geocodeEOPRecords(limit);
+      geocodeFn = () => eopGeocoder.geocodeEOPRecords(limit);
     }
-    
+
+    // Fire and forget — Nominatim takes minutes
+    geocodeFn()
+      .then(r => console.log(`✅ Geocoding done:`, r))
+      .catch(err => console.warn('⚠️ Geocoding error:', err.message));
+
     res.json({
       success: true,
-      message: `Geocoded ${updated} EOP records`,
-      data: {
-        method,
-        updated,
-        geocodedAt: new Date().toISOString()
-      }
+      message: 'Geocoding started in background. Refresh the map in a few minutes.',
+      data: { method, status: 'running_in_background' }
     });
-    
+
   } catch (error) {
     console.error('❌ EOP geocoding failed:', error);
     res.status(500).json({
@@ -233,30 +236,24 @@ router.post('/fetch-and-import', async (req, res) => {
       throw new Error('Failed to import data to database');
     }
     
-    // Step 3: Hybrid geocoding (only if we have records without coordinates)
-    console.log('Step 3: Checking for records needing geocoding...');
-    let geocodeCount = 0;
-    
-    try {
-      const recordsNeedingGeo = await pool.query(`
-        SELECT COUNT(*) as count FROM eop_data WHERE lat IS NULL OR lng IS NULL
-      `);
-      
-      if (parseInt(recordsNeedingGeo.rows[0].count) > 0) {
-        console.log(`Found ${recordsNeedingGeo.rows[0].count} records needing geocoding...`);
-        const geocodeResult = await eopHybridGeocoder.geocodeAll();
-        geocodeCount = geocodeResult.updated || geocodeResult;
-      } else {
-        console.log('All records already have coordinates, skipping geocoding.');
-      }
-    } catch (geoError) {
-      console.warn('⚠️ Geocoding step skipped:', geoError.message);
-      // Continue even if geocoding fails - it's not critical
-    }
-    
+    // Step 3: Kick off geocoding async — Nominatim rate-limit means this takes minutes,
+    // so we fire-and-forget and return immediately. The map will show new pins after
+    // the user refreshes once geocoding finishes.
+    pool.query('SELECT COUNT(*) as count FROM eop_data WHERE lat IS NULL OR lng IS NULL')
+      .then(r => {
+        const needsGeo = parseInt(r.rows[0].count);
+        if (needsGeo > 0) {
+          console.log(`🗺️ Starting async geocoding for ${needsGeo} records...`);
+          eopHybridGeocoder.geocodeAll()
+            .then(result => console.log(`✅ Async geocoding done: ${result.updated} placed, ${result.skipped} skipped`))
+            .catch(err => console.warn('⚠️ Async geocoding error:', err.message));
+        }
+      })
+      .catch(() => {});
+
     res.json({
       success: true,
-      message: 'EOP data fetched, imported and geocoded successfully',
+      message: 'EOP data fetched and imported. Geocoding running in background — refresh the map in a few minutes.',
       data: {
         fetch: {
           total: fetchResult.total,
@@ -269,7 +266,7 @@ router.post('/fetch-and-import', async (req, res) => {
           skipped: importResult.skipped
         },
         geocode: {
-          updated: geocodeCount
+          status: 'running_in_background'
         },
         completedAt: new Date().toISOString()
       }
@@ -312,6 +309,79 @@ router.delete('/clear', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to clear EOP data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/eop/map
+ * Get EOP tenders formatted for map display
+ */
+router.get('/map', async (req, res) => {
+  try {
+    const { limit = 1000, status } = req.query;
+    
+    let query = `
+      SELECT 
+        id,
+        title,
+        description,
+        status,
+        budget,
+        lat,
+        lng,
+        eop_id as reference,
+        publication_date as start_date,
+        end_date,
+        contractor,
+        address,
+        CASE 
+          WHEN status = 'active' THEN 'active'
+          WHEN status = 'planned' THEN 'planned'
+          WHEN status = 'cancelled' THEN 'cancelled'
+          ELSE 'completed'
+        END as map_status,
+        'eop' as source
+      FROM eop_data
+      WHERE lat IS NOT NULL AND lng IS NOT NULL
+    `;
+    
+    const params = [];
+    
+    if (status) {
+      query += ` AND status = $${params.length + 1}`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY publication_date DESC NULLS LAST LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit));
+    
+    const { pool } = require('../db/pool');
+    const result = await pool.query(query, params);
+    
+    // Define colors locally (same as MapPage.jsx)
+    const colors = {
+      eop: {
+        planned: '#f59e0b',
+        active: '#3b82f6',
+        completed: '#22c55e',
+        cancelled: '#ef4444'
+      }
+    };
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        ...row,
+        color: colors.eop[row.map_status] || colors.eop.active
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching EOP map data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch EOP map data',
       message: error.message
     });
   }

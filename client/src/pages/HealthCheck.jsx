@@ -1,9 +1,11 @@
+import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { useState } from 'react'
 import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 export default function HealthCheck() {
+  const { t } = useLanguage()
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -29,7 +31,7 @@ export default function HealthCheck() {
         disabled={loading}
         className="btn-primary mb-4"
       >
-        {loading ? 'Checking...' : 'Check API Health'}
+        {loading ? t('common.loading') : t('health.checkApi')}
       </button>
 
       {result && (

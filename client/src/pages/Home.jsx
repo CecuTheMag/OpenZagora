@@ -5,6 +5,7 @@
  * and quick access to all sections of the application.
  */
 
+import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
@@ -23,6 +24,7 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function Home() {
+  const { t } = useLanguage()
   const [stats, setStats] = useState({
     projects: { total: 0, active: 0, completed: 0 },
     budget: { total: 0 },
@@ -128,7 +130,7 @@ function Home() {
           onClick={fetchDashboardData}
           className="mt-4 btn-primary"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     )
@@ -139,11 +141,10 @@ function Home() {
       {/* Page Header */}
       <div className="text-center py-8">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Welcome to Open Zagora
+          {t('home.welcome')}
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Municipal transparency dashboard for Stara Zagora, Bulgaria. 
-          Track public projects, budget allocations, and council decisions.
+          {t('home.description')}
         </p>
       </div>
 
@@ -153,16 +154,16 @@ function Home() {
         <div className="card hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Projects</p>
+              <p className="text-sm font-medium text-gray-600">{t('stats.totalProjects')}</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
                 {stats.projects.total}
               </p>
               <div className="flex items-center mt-2 space-x-4 text-sm">
                 <span className="text-blue-600">
-                  {stats.projects.active} active
+                  {stats.projects.active} {t('status.active')}
                 </span>
                 <span className="text-green-600">
-                  {stats.projects.completed} completed
+                  {stats.projects.completed} {t('status.completed')}
                 </span>
               </div>
             </div>
@@ -176,12 +177,12 @@ function Home() {
         <div className="card hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Budget</p>
+              <p className="text-sm font-medium text-gray-600">{t('stats.totalBudget')}</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
                 {formatCurrency(stats.budget.total)}
               </p>
               <p className="text-sm text-gray-500 mt-2">
-                Current fiscal year
+                {t('home.currentFiscalYear')}
               </p>
             </div>
             <div className="p-3 bg-secondary-100 rounded-lg">
@@ -194,12 +195,12 @@ function Home() {
         <div className="card hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Council Votes</p>
+              <p className="text-sm font-medium text-gray-600">{t('stats.councilVotes')}</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
                 {stats.votes.total}
               </p>
               <p className="text-sm text-green-600 mt-2">
-                {stats.votes.passed} proposals passed
+                {stats.votes.passed} {t('home.proposalsPassed')}
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -215,12 +216,12 @@ function Home() {
         >
           <div className="flex items-center justify-between h-full">
             <div>
-              <p className="text-sm font-medium text-primary-700">Explore</p>
+              <p className="text-sm font-medium text-primary-700">{t('stats.explore')}</p>
               <p className="text-xl font-bold text-primary-900 mt-2">
-                View Project Map
+                {t('stats.viewProjectMap')}
               </p>
               <div className="flex items-center mt-2 text-primary-700">
-                <span className="text-sm">See all locations</span>
+                <span className="text-sm">{t('home.seeAllLocations')}</span>
                 <ArrowRight className="h-4 w-4 ml-1" />
               </div>
             </div>
@@ -234,18 +235,18 @@ function Home() {
       {/* Recent Projects Section */}
       <div className="card">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Recent Projects</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{t('home.recentProjects')}</h2>
           <Link 
             to="/map" 
             className="flex items-center text-primary-600 hover:text-primary-700 font-medium"
           >
-            View all
+            {t('home.viewAll')}
             <ArrowRight className="h-4 w-4 ml-1" />
           </Link>
         </div>
 
         {recentProjects.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No projects found</p>
+          <p className="text-gray-500 text-center py-8">{t('home.noProjects')}</p>
         ) : (
           <div className="space-y-4">
             {recentProjects.map((project) => (
@@ -299,31 +300,25 @@ function Home() {
         <div className="card text-center">
           <MapPin className="h-12 w-12 text-primary-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Interactive Map
+            {t('home.interactiveMap')}
           </h3>
-          <p className="text-gray-600">
-            Explore municipal projects on an interactive map with location details and status information.
-          </p>
+          <p className="text-gray-600">{t('home.mapDesc')}</p>
         </div>
 
         <div className="card text-center">
           <DollarSign className="h-12 w-12 text-secondary-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Budget Transparency
+            {t('home.budgetTransparency')}
           </h3>
-          <p className="text-gray-600">
-            Visualize budget allocations by category and track spending across different sectors.
-          </p>
+          <p className="text-gray-600">{t('home.budgetDesc')}</p>
         </div>
 
         <div className="card text-center">
           <Users className="h-12 w-12 text-purple-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Council Votes
+            {t('home.councilVotes')}
           </h3>
-          <p className="text-gray-600">
-            Stay informed about municipal council decisions and voting records on important proposals.
-          </p>
+          <p className="text-gray-600">{t('home.votesDesc')}</p>
         </div>
       </div>
     </div>
