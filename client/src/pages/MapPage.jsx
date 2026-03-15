@@ -330,11 +330,12 @@ function MapPage() {
   const triggerGeocode = async () => {
     try {
       setIsGeocoding(true)
-      const response = await axios.post(`${API_URL}/eop/geocode`, { method: 'hybrid' })
-      if (response.data.success) {
-        alert(`Geocoding started in background.\nRefresh the map in a few minutes to see new pins.`)
-        setTimeout(() => fetchData(true), 3000)
-      }
+      // Step 1: street-address geocoding (hybrid)
+      await axios.post(`${API_URL}/eop/geocode`, { method: 'hybrid' })
+      // Step 2: POI / neighbourhood geocoding for whatever hybrid left NULL
+      await axios.post(`${API_URL}/eop/geocode`, { method: 'poi' })
+      alert(`Geocoding started in background.\nRefresh the map in a few minutes to see new pins.`)
+      setTimeout(() => fetchData(true), 3000)
     } catch (error) {
       alert('Failed to start geocoding: ' + (error.response?.data?.message || error.message))
     } finally {

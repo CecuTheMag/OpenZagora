@@ -13,6 +13,7 @@ const eopGeocoder = require('../services/eopGeocoder');
 const eopAIGeocoder = require('../services/eopAIGeocoder');
 const eopExactGeocoder = require('../services/eopExactGeocoder');
 const eopHybridGeocoder = require('../services/eopHybridGeocoder');
+const eopPoiGeocoder = require('../services/eopPoiGeocoder');
 
 /**
  * GET /api/eop/status
@@ -142,6 +143,8 @@ router.post('/geocode', async (req, res) => {
       geocodeFn = method === 'hybrid-reset'
         ? () => eopHybridGeocoder.clearAndGeocodeAll()
         : () => eopHybridGeocoder.geocodeAll();
+    } else if (method === 'poi') {
+      geocodeFn = () => eopPoiGeocoder.geocodeRemaining();
     } else if (method === 'exact') {
       geocodeFn = () => eopExactGeocoder.geocodeAll();
     } else if (method === 'ai') {
@@ -245,7 +248,11 @@ router.post('/fetch-and-import', async (req, res) => {
         if (needsGeo > 0) {
           console.log(`🗺️ Starting async geocoding for ${needsGeo} records...`);
           eopHybridGeocoder.geocodeAll()
-            .then(result => console.log(`✅ Async geocoding done: ${result.updated} placed, ${result.skipped} skipped`))
+            .then(result => {
+              console.log(`✅ Hybrid geocoding done: ${result.updated} placed, ${result.skipped} skipped`);
+              return eopPoiGeocoder.geocodeRemaining();
+            })
+            .then(result => console.log(`✅ POI geocoding done: ${result.placed} placed, ${result.skipped} skipped`))
             .catch(err => console.warn('⚠️ Async geocoding error:', err.message));
         }
       })
