@@ -12,6 +12,7 @@ import Home from './pages/Home'
 import MapPage from './pages/MapPage'
 import BudgetPage from './pages/BudgetPage'
 import CouncilPage from './pages/CouncilPage'
+import TenderDetailsPage from './pages/TenderDetailsPage'
 
 function App() {
   const { t } = useLanguage()
@@ -28,6 +29,9 @@ function App() {
           
           {/* Interactive project map */}
           <Route path="/map" element={<MapPage />} />
+          
+          {/* Tender details page */}
+          <Route path="/tender/:id" element={<TenderDetailsPage />} />
           
           {/* Budget visualization */}
           <Route path="/budget" element={<BudgetPage />} />

@@ -394,4 +394,56 @@ router.get('/map', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/eop/:id
+ * Get single EOP tender by ID
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = `
+      SELECT 
+        id,
+        eop_id,
+        title,
+        description,
+        status,
+        budget,
+        lat,
+        lng,
+        publication_date,
+        end_date,
+        contractor,
+        address,
+        source_url,
+        updated_at
+      FROM eop_data
+      WHERE id = $1
+    `;
+    
+    const { pool } = require('../db/pool');
+    const result = await pool.query(query, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tender not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching EOP tender:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch tender details',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

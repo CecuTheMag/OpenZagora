@@ -12,7 +12,8 @@ import {
   Upload, FileText, LogOut, User, Shield, 
   CheckCircle, AlertCircle, Loader2, X, 
   FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen, Table, MapPin, Vote, Archive
+  Database, Lock, FolderOpen, Table, MapPin, Vote, Archive,
+  RefreshCw, LocateFixed, Map
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -38,6 +39,12 @@ const AdminDashboard = () => {
   const [isProcessingFolder, setIsProcessingFolder] = useState(false);
   const [folderResult, setFolderResult] = useState(null);
   const [folderError, setFolderError] = useState(null);
+  
+  // Map data management state
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [mapDataResult, setMapDataResult] = useState(null);
+  const [mapDataError, setMapDataError] = useState(null);
   
   const fileInputRef = useRef(null);
 
@@ -172,6 +179,87 @@ const AdminDashboard = () => {
       fetchUploadHistory();
     }
     setShowHistory(!showHistory);
+  };
+
+  // Handle map data fetch
+  const handleMapDataFetch = async () => {
+    setIsFetchingData(true);
+    setMapDataError(null);
+    setMapDataResult(null);
+
+    try {
+      // Call the main server (port 5000) for map data operations
+      const mainServerAPI = 'http://localhost:5000/api';
+      
+      const [eopRes, osmRes] = await Promise.allSettled([
+        fetch(`${mainServerAPI}/eop/fetch-and-import`, { method: 'POST' }),
+        fetch(`${mainServerAPI}/osm/fetch`, { method: 'POST' }),
+      ]);
+      
+      const eop = eopRes.status === 'fulfilled' ? await eopRes.value.json() : null;
+      const osm = osmRes.status === 'fulfilled' ? await osmRes.value.json() : null;
+      
+      const results = [];
+      if (eop?.success) {
+        results.push(`EOP: ${eop.data.import.imported} new, ${eop.data.import.updated} updated`);
+      } else {
+        results.push('EOP: failed');
+      }
+      
+      if (osm?.success) {
+        results.push(`OSM: ${osm.data.totalSaved} objects saved`);
+      } else {
+        results.push('OSM: failed');
+      }
+      
+      setMapDataResult({
+        eop: eop?.success ? eop.data : null,
+        osm: osm?.success ? osm.data : null,
+        summary: results.join(' | ')
+      });
+      
+    } catch (err) {
+      const errorMessage = err.message || 'Failed to fetch map data';
+      setMapDataError(errorMessage);
+    } finally {
+      setIsFetchingData(false);
+    }
+  };
+
+  // Handle geocoding
+  const handleGeocode = async () => {
+    setIsGeocoding(true);
+    setMapDataError(null);
+    setMapDataResult(null);
+
+    try {
+      // Call the main server (port 5000) for geocoding
+      const mainServerAPI = 'http://localhost:5000/api';
+      
+      await Promise.all([
+        fetch(`${mainServerAPI}/eop/geocode`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: 'hybrid' })
+        }),
+        fetch(`${mainServerAPI}/eop/geocode`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: 'poi' })
+        })
+      ]);
+      
+      setMapDataResult({
+        geocoding: true,
+        summary: 'Geocoding started in background. Check map in a few minutes.'
+      });
+      
+    } catch (err) {
+      const errorMessage = err.message || 'Failed to start geocoding';
+      setMapDataError(errorMessage);
+    } finally {
+      setIsGeocoding(false);
+    }
   };
 
   // Handle folder upload - runs the shell script to import all budget data
@@ -831,6 +919,96 @@ const AdminDashboard = () => {
                   <Vote className="h-4 w-4 mr-2" />
                   Open Council Votes Manager
                 </button>
+              </div>
+            </div>
+
+            {/* Map Data Management Card */}
+            <div className="card">
+              <div className="card-header">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Map className="h-5 w-5 text-primary-600 mr-2" />
+                  Map Data Management
+                </h2>
+              </div>
+              <div className="card-body space-y-4">
+                <p className="text-sm text-gray-600">
+                  Fetch fresh data from external sources and update map coordinates.
+                </p>
+                
+                {/* Map Data Results */}
+                {mapDataResult && (
+                  <div className="alert-success">
+                    <div className="flex items-start">
+                      <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">Operation completed!</p>
+                        <p className="text-sm mt-1">{mapDataResult.summary}</p>
+                        {mapDataResult.eop && (
+                          <p className="text-xs mt-1">
+                            EOP: {mapDataResult.eop.import.imported} imported, {mapDataResult.eop.import.updated} updated
+                          </p>
+                        )}
+                        {mapDataResult.osm && (
+                          <p className="text-xs mt-1">
+                            OSM: {mapDataResult.osm.totalSaved} objects saved
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Map Data Error */}
+                {mapDataError && (
+                  <div className="alert-error flex items-start">
+                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                    <span>{mapDataError}</span>
+                  </div>
+                )}
+                
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handleMapDataFetch}
+                    disabled={isFetchingData}
+                    className="btn-primary w-full"
+                  >
+                    {isFetchingData ? (
+                      <>
+                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                        Fetching Data...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Fetch Fresh Data
+                      </>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={handleGeocode}
+                    disabled={isGeocoding}
+                    className="btn-secondary w-full"
+                  >
+                    {isGeocoding ? (
+                      <>
+                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                        Starting Geocoding...
+                      </>
+                    ) : (
+                      <>
+                        <LocateFixed className="h-4 w-4 mr-2" />
+                        Locate Tenders
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p>• Fetch Data: Gets new tenders from EOP and POIs from OSM</p>
+                  <p>• Locate Tenders: Adds coordinates to tenders without location</p>
+                  <p>• Geocoding runs in background - check map after a few minutes</p>
+                </div>
               </div>
             </div>
 

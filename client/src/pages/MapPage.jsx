@@ -1,38 +1,21 @@
 /**
- * Map Page
- * 
- * Interactive map showing municipal projects and OSM data using Leaflet.
- * Displays markers from multiple sources: EOP (public procurement) and OSM (points of interest).
- * Auto-refreshes data periodically.
+ * Map Page — fullscreen on mobile with bottom sheet controls
  */
 
 import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { formatCurrency } from '../utils/currency.js'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import axios from 'axios'
-import { 
-  MapPin, 
-  Filter, 
-  Search,
-  Building,
-  DollarSign,
-  Calendar,
-  Info,
-  RefreshCw,
-  Layers,
-  LocateFixed
+import {
+  MapPin, Search, Building, DollarSign, RefreshCw,
+  ChevronDown, ChevronUp, ExternalLink, Info, LocateFixed, X, SlidersHorizontal, Filter, Layers
 } from 'lucide-react'
 import L from 'leaflet'
 
-// API base URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-console.log('API_URL configured as:', API_URL)
-
-// Auto-refresh interval in milliseconds (5 minutes)
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000
 
-// Fix Leaflet default icon issue in React
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -40,685 +23,861 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
 
-// Custom marker icons for different statuses/types
-const createCustomIcon = (color, size = 24) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="
-      background-color: ${color};
-      width: ${size}px;
-      height: ${size}px;
-      border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    "></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size/2, size/2],
-    popupAnchor: [0, -size/2]
-  })
-}
-
-// Color schemes for different data sources and types
 const colors = {
-  // EOP status colors
-  eop: {
-    planned: '#f59e0b',   // amber-500
-    active: '#3b82f6',    // blue-500
-    completed: '#22c55e', // green-500
-    cancelled: '#ef4444'  // red-500
-  },
-  // OSM type colors
+  eop: { planned: '#f59e0b', active: '#3b82f6', completed: '#22c55e', cancelled: '#ef4444' },
   osm: {
-    school: '#8b5cf6',      // purple
-    hospital: '#ef4444',     // red
-    library: '#0ea5e9',     // sky blue
-    bus_stop: '#f97316',    // orange
-    park: '#22c55e',        // green
-    pharmacy: '#ec4899',    // pink
-    building: '#6b7280',    // gray
-    street: '#94a3b8'       // slate
+    school: '#8b5cf6', hospital: '#ef4444', library: '#0ea5e9',
+    bus_stop: '#f97316', park: '#22c55e', pharmacy: '#ec4899',
+    building: '#6b7280', street: '#94a3b8'
+  },
+  gis: {
+    municipal: '#10b981', infrastructure: '#f59e0b', zoning: '#8b5cf6'
   }
 }
 
-// Data source types — labels resolved inside component via t()
-const DATA_SOURCE_IDS = [
-  { id: 'eop', color: '#3b82f6', icon: Building },
-  { id: 'osm', color: '#8b5cf6', icon: MapPin }
+const TILE_LAYERS = {
+  osm: {
+    name: 'OpenStreetMap',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  },
+  satellite: {
+    name: 'Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>'
+  }
+}
+
+const OSM_TYPE_IDS = [
+  { id: 'school',   color: colors.osm.school },
+  { id: 'hospital', color: colors.osm.hospital },
+  { id: 'library',  color: colors.osm.library },
+  { id: 'bus_stop', color: colors.osm.bus_stop },
+  { id: 'park',     color: colors.osm.park },
+  { id: 'pharmacy', color: colors.osm.pharmacy },
 ]
 
-// OSM types — labels resolved inside component via t()
-const OSM_TYPE_IDS = [
-  { id: 'school', color: colors.osm.school },
-  { id: 'hospital', color: colors.osm.hospital },
-  { id: 'library', color: colors.osm.library },
-  { id: 'bus_stop', color: colors.osm.bus_stop },
-  { id: 'park', color: colors.osm.park },
-  { id: 'pharmacy', color: colors.osm.pharmacy }
+const GIS_TYPE_IDS = [
+  { id: 'municipal', color: colors.gis.municipal },
+  { id: 'infrastructure', color: colors.gis.infrastructure },
+  { id: 'zoning', color: colors.gis.zoning },
 ]
+
+const STATUS_COLORS = {
+  planned:   'bg-amber-100 text-amber-800',
+  active:    'bg-blue-100 text-blue-800',
+  completed: 'bg-green-100 text-green-800',
+  cancelled: 'bg-red-100 text-red-800',
+}
+
+const createCustomIcon = (color, size = 28) =>
+  L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35)"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  })
+
+// ── GIS Iframe Component ──
+function GISFrame() {
+  return (
+    <div className="w-full h-full relative">
+      <iframe
+        src="https://gis.starazagora.bg/"
+        className="w-full h-full border-0"
+        title="Stara Zagora GIS"
+        allow="geolocation"
+      />
+      <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded px-2 py-1 text-xs text-gray-600">
+        Stara Zagora GIS
+      </div>
+    </div>
+  )
+}
+
+// ── Map Component with conditional rendering ──
+function MapComponent({ sourceFilter, mapLayer, filteredMarkers, getMarkerColor, t, defaultCenter, defaultZoom }) {
+  if (sourceFilter === 'gis') {
+    return <GISFrame />
+  }
+
+  return (
+    <MapContainer
+      center={defaultCenter}
+      zoom={defaultZoom}
+      scrollWheelZoom={true}
+      style={{ height: '100%', width: '100%' }}
+    >
+      <TileLayer
+        attribution={TILE_LAYERS[mapLayer].attribution}
+        url={TILE_LAYERS[mapLayer].url}
+      />
+      <MarkerLayer markers={filteredMarkers} getMarkerColor={getMarkerColor} t={t} />
+    </MapContainer>
+  )
+}
+
+// ── Shared marker list (used in both normal map and fullscreen map) ──
+function MarkerLayer({ markers, getMarkerColor, t }) {
+  // Group markers by coordinates
+  const groupedMarkers = markers.reduce((groups, marker) => {
+    const key = `${parseFloat(marker.lat).toFixed(6)},${parseFloat(marker.lng).toFixed(6)}`
+    if (!groups[key]) {
+      groups[key] = []
+    }
+    groups[key].push(marker)
+    return groups
+  }, {})
+
+  return Object.entries(groupedMarkers).map(([coordKey, markersAtLocation]) => {
+    const [lat, lng] = coordKey.split(',').map(Number)
+    const primaryMarker = markersAtLocation[0]
+    const hasMultiple = markersAtLocation.length > 1
+
+    return (
+      <Marker
+        key={coordKey}
+        position={[lat, lng]}
+        icon={createCustomIcon(
+          getMarkerColor(primaryMarker), 
+          hasMultiple ? 32 : 28
+        )}
+      >
+        <Popup maxWidth={320} minWidth={280}>
+          {hasMultiple ? (
+            // Multiple markers at same location - scrollable list
+            <div className="p-2">
+              <div className="text-xs text-gray-500 mb-3 text-center">
+                {markersAtLocation.length} items at this location
+              </div>
+              <div className="max-h-80 overflow-y-auto space-y-3">
+                {markersAtLocation.map((marker, idx) => (
+                  <div key={`${marker.source}-${marker.id ?? idx}`} className="border-b border-gray-100 last:border-b-0 pb-3 last:pb-0">
+                    <div className="flex items-start gap-2 mb-2">
+                      <div 
+                        className="w-3 h-3 rounded-full shrink-0 mt-1" 
+                        style={{ backgroundColor: getMarkerColor(marker) }}
+                      />
+                      <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: getMarkerColor(marker) }}>
+                        {marker.source === 'eop' ? t('map.source.eop') : t('map.source.osm')}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm leading-snug mb-2 line-clamp-2">{marker.title}</h3>
+                    
+                    {marker.source === 'eop' && (
+                      <div className="space-y-1.5 text-sm">
+                        {marker.status && (
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[marker.status] || 'bg-gray-100 text-gray-700'}`}>
+                            {t(`status.${marker.status}`)}
+                          </span>
+                        )}
+                        {marker.budget && (
+                          <div className="flex items-center gap-1.5 text-gray-700">
+                            <DollarSign className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                            <span className="font-medium text-xs">{formatCurrency(marker.budget)}</span>
+                          </div>
+                        )}
+                        {marker.contractor && (
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <Building className="h-3.5 w-3.5 shrink-0" />
+                            <span className="line-clamp-1 text-xs">{marker.contractor}</span>
+                          </div>
+                        )}
+                        {marker.address && (
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <MapPin className="h-3.5 w-3.5 shrink-0" />
+                            <span className="text-xs line-clamp-1">{marker.address}</span>
+                          </div>
+                        )}
+                        {marker.description && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-600 line-clamp-2">{marker.description}</p>
+                          </div>
+                        )}
+                        <div className="flex gap-2 mt-2">
+                          <a 
+                            href={`/tender/${marker.id}`}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 bg-blue-50 rounded transition-colors"
+                          >
+                            <Info className="h-3 w-3" />
+                            {t('map.viewDetails')}
+                          </a>
+                          {marker.url && (
+                            <a href={marker.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-xs px-2 py-1 bg-gray-50 rounded transition-colors">
+                              <ExternalLink className="h-3 w-3" />
+                              {t('map.viewSource')}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {marker.source === 'osm' && (
+                      <div className="flex items-center gap-1.5 text-gray-600 text-sm">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: getMarkerColor(marker) }} />
+                        <span className="text-xs">{t(`map.osm.${marker.type}`) || marker.type}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            // Single marker - original layout
+            <div className="p-1">
+              <span
+                className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full text-white mb-2"
+                style={{ backgroundColor: getMarkerColor(primaryMarker) }}
+              >
+                {primaryMarker.source === 'eop' ? t('map.source.eop') : t('map.source.osm')}
+              </span>
+              <h3 className="font-bold text-gray-900 text-sm leading-snug mb-2 line-clamp-2">{primaryMarker.title}</h3>
+              {primaryMarker.source === 'eop' && (
+                <div className="space-y-1.5 text-sm">
+                  {primaryMarker.status && (
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[primaryMarker.status] || 'bg-gray-100 text-gray-700'}`}>
+                      {t(`status.${primaryMarker.status}`)}
+                    </span>
+                  )}
+                  {primaryMarker.budget && (
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <DollarSign className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      <span className="font-medium">{formatCurrency(primaryMarker.budget)}</span>
+                    </div>
+                  )}
+                  {primaryMarker.contractor && (
+                    <div className="flex items-center gap-1.5 text-gray-600">
+                      <Building className="h-3.5 w-3.5 shrink-0" />
+                      <span className="line-clamp-1 text-xs">{primaryMarker.contractor}</span>
+                    </div>
+                  )}
+                  {primaryMarker.address && (
+                    <div className="flex items-center gap-1.5 text-gray-600">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      <span className="text-xs line-clamp-1">{primaryMarker.address}</span>
+                    </div>
+                  )}
+                  {primaryMarker.description && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-600 line-clamp-2">{primaryMarker.description}</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    <a 
+                      href={`/tender/${primaryMarker.id}`}
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 bg-blue-50 rounded transition-colors"
+                    >
+                      <Info className="h-3 w-3" />
+                      {t('map.viewDetails')}
+                    </a>
+                    {primaryMarker.url && (
+                      <a href={primaryMarker.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-xs px-2 py-1 bg-gray-50 rounded transition-colors">
+                        <ExternalLink className="h-3 w-3" />
+                        {t('map.viewSource')}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+              {primaryMarker.source === 'osm' && (
+                <div className="flex items-center gap-1.5 text-gray-600 text-sm">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: getMarkerColor(primaryMarker) }} />
+                  <span>{t(`map.osm.${primaryMarker.type}`) || primaryMarker.type}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </Popup>
+      </Marker>
+    )
+  })
+}
+
+// ── Filter + Legend panel ──
+function FiltersPanel({ t, searchQuery, setSearchQuery, sourceFilter, setSourceFilter,
+  statusFilter, setStatusFilter, osmTypeFilter, setOsmTypeFilter, gisTypeFilter, setGisTypeFilter,
+  filteredMarkers, markers, lastUpdated, mapLayer, setMapLayer }) {
+
+  // Legend items based on active filters
+  const legendItems = []
+  if (sourceFilter === 'eop') {
+    const statuses = statusFilter === 'all'
+      ? ['completed', 'active', 'planned', 'cancelled']
+      : [statusFilter]
+    statuses.forEach(s => legendItems.push({ color: colors.eop[s], label: t(`status.${s}`) }))
+  } else if (sourceFilter === 'osm') {
+    const types = osmTypeFilter === 'all' ? OSM_TYPE_IDS : OSM_TYPE_IDS.filter(tp => tp.id === osmTypeFilter)
+    types.forEach(tp => legendItems.push({ color: tp.color, label: t(`map.osm.${tp.id}`) }))
+  }
+  // No legend for GIS since it's an iframe
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Map Layer Selection - only show for non-GIS sources */}
+      {sourceFilter !== 'gis' && (
+        <div>
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">
+            {t('map.baseLayer')}
+          </label>
+          <div className="flex gap-1">
+            {Object.entries(TILE_LAYERS).map(([key, layer]) => (
+              <button
+                key={key}
+                onClick={() => setMapLayer(key)}
+                className={`flex-1 py-1.5 px-2 rounded text-xs font-medium transition-all border ${
+                  mapLayer === key ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {key === 'osm' ? 'OSM' : 'Satellite'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search - only show for non-GIS sources */}
+      {sourceFilter !== 'gis' && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder={t('map.searchPlaceholder')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 bg-gray-50"
+          />
+        </div>
+      )}
+
+      {/* Source toggle — EOP, OSM, or GIS */}
+      <div className="flex gap-1">
+        {[
+          { id: 'eop', label: 'EOP', color: '#3b82f6' },
+          { id: 'osm', label: 'OSM', color: '#8b5cf6' },
+          { id: 'gis', label: 'GIS', color: '#10b981' },
+        ].map(s => (
+          <button
+            key={s.id}
+            onClick={() => setSourceFilter(s.id)}
+            className={`flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-all border ${
+              sourceFilter === s.id ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+            style={sourceFilter === s.id ? { backgroundColor: s.color } : {}}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* GIS Info */}
+      {sourceFilter === 'gis' && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <ExternalLink className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-green-900">Stara Zagora GIS</p>
+              <p className="text-xs text-green-700 mt-1">{t('map.gisDesc')}</p>
+              <a 
+                href="https://gis.starazagora.bg/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-green-600 hover:text-green-800 underline mt-1 inline-block"
+              >
+                {t('map.openInNewTab')}
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status filter — only for EOP */}
+      {sourceFilter === 'eop' && (
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="w-full py-2.5 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+          <option value="all">{t('map.allStatus')}</option>
+          <option value="planned">{t('status.planned')}</option>
+          <option value="active">{t('status.active')}</option>
+          <option value="completed">{t('status.completed')}</option>
+          <option value="cancelled">{t('status.cancelled')}</option>
+        </select>
+      )}
+
+      {/* OSM type filter — only for OSM */}
+      {sourceFilter === 'osm' && (
+        <select value={osmTypeFilter} onChange={e => setOsmTypeFilter(e.target.value)}
+          className="w-full py-2.5 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+          <option value="all">{t('map.allTypes')}</option>
+          {OSM_TYPE_IDS.map(tp => (
+            <option key={tp.id} value={tp.id}>{t(`map.osm.${tp.id}`)}</option>
+          ))}
+        </select>
+      )}
+
+      {/* GIS type filter — only for GIS */}
+      {sourceFilter === 'gis' && (
+        <select value={gisTypeFilter} onChange={e => setGisTypeFilter(e.target.value)}
+          className="w-full py-2.5 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+          <option value="all">{t('map.allTypes')}</option>
+          {GIS_TYPE_IDS.map(tp => (
+            <option key={tp.id} value={tp.id}>{t(`map.gis.${tp.id}`)}</option>
+          ))}
+        </select>
+      )}
+
+      {/* Count - only show for non-GIS sources */}
+      {sourceFilter !== 'gis' && (
+        <p className="text-xs text-gray-400">
+          {t('map.showing', { filtered: filteredMarkers.length, total: markers.length })}
+          {lastUpdated && ` · ${lastUpdated.toLocaleTimeString('bg-BG')}`}
+        </p>
+      )}
+
+      {/* Legend — only relevant items, not for GIS */}
+      {legendItems.length > 0 && sourceFilter !== 'gis' && (
+        <div className="border-t border-gray-100 pt-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Info className="h-3.5 w-3.5 text-gray-400" />
+            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{t('map.legend')}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {legendItems.map(item => (
+              <div key={item.label} className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                <span className="text-xs text-gray-600 truncate">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Floating filter button + dropdown ──
+function FilterDropdown({ t, filterProps, activeFilterCount }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-xl border shadow-sm text-sm font-medium transition-all ${
+          open ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        <Filter className="h-4 w-4" />
+        {t('map.filtersAndLegend')}
+        {activeFilterCount > 0 && (
+          <span className={`text-xs rounded-full px-1.5 py-0.5 leading-none font-semibold ${
+            open ? 'bg-white text-primary-600' : 'bg-primary-600 text-white'
+          }`}>
+            {activeFilterCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl border border-gray-200 shadow-xl z-[2000] p-4">
+          <FiltersPanel {...filterProps} />
+        </div>
+      )}
+    </div>
+  )
+}
 
 function MapPage() {
   const { t } = useLanguage()
 
-  const DATA_SOURCES = DATA_SOURCE_IDS.map(s => ({ ...s, label: t(`map.source.${s.id}`) }))
-  const OSM_TYPES = OSM_TYPE_IDS.map(s => ({ ...s, label: t(`map.osm.${s.id}`) }))
   const [markers, setMarkers] = useState([])
   const [filteredMarkers, setFilteredMarkers] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
-  
-  // Filters
+
   const [searchQuery, setSearchQuery] = useState('')
-  const [sourceFilter, setSourceFilter] = useState(['eop', 'osm']) // Show all by default
+  const [sourceFilter, setSourceFilter] = useState('eop')
   const [statusFilter, setStatusFilter] = useState('all')
   const [osmTypeFilter, setOsmTypeFilter] = useState('all')
+  const [gisTypeFilter, setGisTypeFilter] = useState('all')
+  const [mapLayer, setMapLayer] = useState('osm')
+  const [gisStatus, setGisStatus] = useState('checking') // 'active', 'inactive', 'checking'
+
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
   const [isGeocoding, setIsGeocoding] = useState(false)
-  
-  // Stara Zagora coordinates
+
   const defaultCenter = [42.4257, 25.6344]
   const defaultZoom = 13
 
-  // Fetch data from API
+  // Check GIS site availability
+  const checkGISStatus = useCallback(async () => {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+      
+      const response = await fetch('https://gis.starazagora.bg/', {
+        method: 'HEAD',
+        mode: 'no-cors',
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      setGisStatus('active')
+    } catch (error) {
+      setGisStatus('inactive')
+    }
+  }, [])
+
+  useEffect(() => {
+    checkGISStatus()
+    // Check GIS status every 5 minutes
+    const gisInterval = setInterval(checkGISStatus, 5 * 60 * 1000)
+    return () => clearInterval(gisInterval)
+  }, [checkGISStatus])
+
+  // Lock body scroll when fullscreen
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      setSheetOpen(false)
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [isFullscreen])
+
   const fetchData = useCallback(async (isRefresh = false) => {
     try {
-      if (isRefresh) {
-        setRefreshing(true)
-      } else {
-        setLoading(true)
-      }
+      isRefresh ? setRefreshing(true) : setLoading(true)
       setError(null)
-      
-      // Multi-source fetch for map
-      const allMarkers = [];
-      
-      // Always try EOP (primary tenders data)
-      try {
-        console.log('Fetching EOP tenders:', `${API_URL}/eop/map?limit=1000`);
-        const eopResponse = await axios.get(`${API_URL}/eop/map?limit=1000`, { timeout: 10000 });
-        if (eopResponse.data?.success) {
-          console.log(`EOP: ${eopResponse.data.data.length} geocoded tenders`);
-          allMarkers.push(...eopResponse.data.data);
-        }
-      } catch (eopError) {
-        console.warn('EOP map fetch failed:', eopError.message);
-      }
-      
-      // Try unified OSM (existing)
-      try {
-        console.log('Fetching unified OSM:', `${API_URL}/osm/unified/map?limit=1000`);
-        const unifiedResponse = await axios.get(`${API_URL}/osm/unified/map?limit=1000`, { timeout: 10000 });
-        if (unifiedResponse.data?.success) {
-          console.log(`Unified OSM: ${unifiedResponse.data.data.length} markers`);
-          allMarkers.push(...unifiedResponse.data.data);
-        }
-      } catch (unifiedError) {
-        console.warn('Unified OSM fetch failed:', unifiedError.message);
-      }
-      
-      // Fallback: legacy projects
-      try {
-        console.log('Fetching legacy projects:', `${API_URL}/projects?limit=500`);
-        const projectsResponse = await axios.get(`${API_URL}/projects?limit=500`, { timeout: 10000 });
-        const legacyData = (projectsResponse.data?.data || [])
-          .filter(p => p.lat && p.lng)
-          .map(p => ({
-            ...p,
-            source: 'projects',
-            color: colors.eop[p.status] || '#6b7280'
-          }));
-        console.log(`Projects: ${legacyData.length} with coords`);
-        allMarkers.push(...legacyData);
-      } catch (projectsError) {
-        console.warn('Projects fallback failed:', projectsError.message);
-      }
-      
-      // Deduplicate by source+id
-      const seen = new Set();
-      const deduped = allMarkers.filter(m => {
-        const k = `${m.source}-${m.id}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
+      const allMarkers = []
 
-      console.log(`Total markers loaded: ${deduped.length} (${allMarkers.length} before dedup)`);
-      if (deduped.length === 0) {
-        throw new Error('No map data available - run "Fetch EOP Data" first');
-      }
-      
-      setMarkers(deduped);
-      setFilteredMarkers(deduped);
-      setLastUpdated(new Date());
+      try {
+        const r = await axios.get(`${API_URL}/eop/map?limit=1000`, { timeout: 10000 })
+        if (r.data?.success) allMarkers.push(...r.data.data)
+      } catch {}
+
+      try {
+        const r = await axios.get(`${API_URL}/osm/unified/map?limit=1000`, { timeout: 10000 })
+        if (r.data?.success) allMarkers.push(...r.data.data)
+      } catch {}
+
+      try {
+        const r = await axios.get(`${API_URL}/projects?limit=500`, { timeout: 10000 })
+        const legacy = (r.data?.data || [])
+          .filter(p => p.lat && p.lng)
+          .map(p => ({ ...p, source: 'projects', color: colors.eop[p.status] || '#6b7280' }))
+        allMarkers.push(...legacy)
+      } catch {}
+
+      const seen = new Set()
+      const deduped = allMarkers.filter(m => {
+        const k = `${m.source}-${m.id}`
+        if (seen.has(k)) return false
+        seen.add(k)
+        return true
+      })
+
+      if (deduped.length === 0) throw new Error('no_data')
+      setMarkers(deduped)
+      setFilteredMarkers(deduped)
+      setLastUpdated(new Date())
     } catch (err) {
-      console.error('Error fetching map data:', err)
-      setError('Failed to load map data. Please ensure the server is running.')
+      setError(err.message === 'no_data' ? t('map.noDataError') : t('map.loadError'))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [API_URL])
+  }, [t])
 
-  // Initial fetch
+  useEffect(() => { fetchData() }, [fetchData])
   useEffect(() => {
-    fetchData()
+    const id = setInterval(() => fetchData(true), AUTO_REFRESH_INTERVAL)
+    return () => clearInterval(id)
   }, [fetchData])
 
-  // Auto-refresh
   useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('Auto-refreshing map data...')
-      fetchData(true)
-    }, AUTO_REFRESH_INTERVAL)
-
-    return () => clearInterval(interval)
-  }, [fetchData])
-
-  // Apply filters
-  useEffect(() => {
-    let filtered = markers
-
-    // Filter by source
-    if (sourceFilter.length > 0 && sourceFilter.length < 2) {
-      filtered = filtered.filter(m => m.source === sourceFilter[0])
-    }
-
-    // Filter by EOP status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(m => 
-        m.source !== 'eop' || m.status === statusFilter
-      )
-    }
-
-    // Filter by OSM type
-    if (osmTypeFilter !== 'all') {
-      filtered = filtered.filter(m => 
-        m.source !== 'osm' || m.type === osmTypeFilter
-      )
-    }
-
-    // Filter by search query
+    let f = markers
+    if (sourceFilter === 'eop') f = f.filter(m => m.source === 'eop')
+    else if (sourceFilter === 'osm') f = f.filter(m => m.source === 'osm')
+    else if (sourceFilter === 'gis') f = f.filter(m => m.source === 'gis')
+    if (statusFilter !== 'all') f = f.filter(m => m.source !== 'eop' || m.status === statusFilter)
+    if (osmTypeFilter !== 'all') f = f.filter(m => m.source !== 'osm' || m.type === osmTypeFilter)
+    if (gisTypeFilter !== 'all') f = f.filter(m => m.source !== 'gis' || m.type === gisTypeFilter)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(m => 
-        m.title?.toLowerCase().includes(query) ||
-        m.description?.toLowerCase().includes(query) ||
-        m.type?.toLowerCase().includes(query)
+      const q = searchQuery.toLowerCase()
+      f = f.filter(m =>
+        m.title?.toLowerCase().includes(q) ||
+        m.description?.toLowerCase().includes(q) ||
+        m.type?.toLowerCase().includes(q)
       )
     }
+    setFilteredMarkers(f)
+  }, [markers, sourceFilter, statusFilter, osmTypeFilter, gisTypeFilter, searchQuery])
 
-    setFilteredMarkers(filtered)
-  }, [markers, sourceFilter, statusFilter, osmTypeFilter, searchQuery])
-
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('bg-BG', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+  const getMarkerColor = m => {
+    if (m.source === 'eop') return colors.eop[m.status] || colors.eop.active
+    if (m.source === 'osm') return colors.osm[m.type] || colors.osm.building
+    if (m.source === 'gis') return colors.gis[m.type] || colors.gis.municipal
+    return '#6b7280'
   }
 
-  // Get marker color
-  const getMarkerColor = (marker) => {
-    if (marker.source === 'eop') {
-      return colors.eop[marker.status] || colors.eop.active
-    }
-    return colors.osm[marker.type] || colors.osm.building
-  }
-
-  // Get status badge class
-  const getStatusBadge = (status) => {
-    const classes = {
-      planned: 'status-planned',
-      active: 'status-active',
-      completed: 'status-completed',
-      cancelled: 'status-cancelled'
-    }
-    return classes[status] || 'bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium'
-  }
-
-  // Toggle source filter
-  const toggleSourceFilter = (source) => {
-    setSourceFilter(prev => {
-      if (prev.includes(source)) {
-        return prev.filter(s => s !== source)
-      }
-      return [...prev, source]
-    })
-  }
-
-  // Count markers by type
-  const eopCount = markers.filter(m => m.source === 'eop').length
-  const osmCount = markers.filter(m => m.source === 'osm').length
-
-  // Manually trigger data fetch
   const triggerDataFetch = async () => {
     try {
       setIsFetching(true)
-      const [eopResponse, osmResponse] = await Promise.allSettled([
+      const [eopRes, osmRes] = await Promise.allSettled([
         axios.post(`${API_URL}/eop/fetch-and-import`),
-        axios.post(`${API_URL}/osm/fetch`)
+        axios.post(`${API_URL}/osm/fetch`),
       ])
-      const eop = eopResponse.status === 'fulfilled' ? eopResponse.value.data : null
-      const osm = osmResponse.status === 'fulfilled' ? osmResponse.value.data : null
+      const eop = eopRes.status === 'fulfilled' ? eopRes.value.data : null
+      const osm = osmRes.status === 'fulfilled' ? osmRes.value.data : null
       const lines = []
-      if (eop?.success) {
-        lines.push(`EOP: ${eop.data.import.imported} new, ${eop.data.import.updated} updated tenders`)
-      } else {
-        lines.push(`EOP: failed - ${eopResponse.reason?.message || 'unknown error'}`)
-      }
-      if (osm?.success) {
-        lines.push(`OSM: ${osm.data.totalSaved} POIs saved (schools, hospitals, libraries, bus stops)`)
-      } else {
-        lines.push(`OSM: failed - ${osmResponse.reason?.message || 'unknown error'}`)
-      }
-      lines.push('\nGeocoding running in background — refresh map in a few minutes.')
+      if (eop?.success) lines.push(`EOP: ${eop.data.import.imported} нови, ${eop.data.import.updated} обновени`)
+      else lines.push('EOP: неуспешно')
+      if (osm?.success) lines.push(`OSM: ${osm.data.totalSaved} обекта запазени`)
+      else lines.push('OSM: неуспешно')
+      lines.push('\nГеолокирането върви на заден план — обнови картата след няколко минути.')
       alert(lines.join('\n'))
       setTimeout(() => fetchData(true), 2000)
-    } catch (error) {
-      console.error('Error triggering fetch:', error)
-      alert('Failed to fetch data: ' + (error.response?.data?.message || error.message))
+    } catch (e) {
+      alert('Грешка: ' + (e.response?.data?.message || e.message))
     } finally {
       setIsFetching(false)
     }
   }
 
-  // Manually trigger geocoding only
   const triggerGeocode = async () => {
     try {
       setIsGeocoding(true)
-      // Step 1: street-address geocoding (hybrid)
       await axios.post(`${API_URL}/eop/geocode`, { method: 'hybrid' })
-      // Step 2: POI / neighbourhood geocoding for whatever hybrid left NULL
       await axios.post(`${API_URL}/eop/geocode`, { method: 'poi' })
-      alert(`Geocoding started in background.\nRefresh the map in a few minutes to see new pins.`)
+      alert('Геолокирането стартира на заден план.\nОбнови картата след няколко минути.')
       setTimeout(() => fetchData(true), 3000)
-    } catch (error) {
-      alert('Failed to start geocoding: ' + (error.response?.data?.message || error.message))
+    } catch (e) {
+      alert('Грешка: ' + (e.response?.data?.message || e.message))
     } finally {
       setIsGeocoding(false)
     }
   }
 
-  // Check database status
-  const checkStatus = async () => {
-    try {
-      const debugRes = await axios.get(`${API_URL}/osm/debug`)
-      console.log('Database status:', debugRes.data)
-      alert(`Database Status:\n\nTables: ${debugRes.data.tables.join(', ')}\n\nRecords with coordinates:\nOSM: ${debugRes.data.counts.osm}\nEOP: ${debugRes.data.counts.eop}\n\nTotal: ${debugRes.data.counts.osm + debugRes.data.counts.eop}`)
-    } catch (error) {
-      console.error('Error checking status:', error)
-      alert('Failed to check status: ' + (error.response?.data?.message || error.message))
-    }
+  const getGisStatusValue = () => {
+    if (gisStatus === 'checking') return '...'
+    return gisStatus === 'active' ? 'Active' : 'Inactive'
   }
+
+  const getGisStatusColor = () => {
+    if (gisStatus === 'checking') return 'text-gray-600'
+    return gisStatus === 'active' ? 'text-green-600' : 'text-red-600'
+  }
+
+  const getGisStatusBg = () => {
+    if (gisStatus === 'checking') return 'bg-gray-50'
+    return gisStatus === 'active' ? 'bg-green-50' : 'bg-red-50'
+  }
+
+  const getGisStatusDot = () => {
+    if (gisStatus === 'checking') return 'bg-gray-400'
+    return gisStatus === 'active' ? 'bg-green-500' : 'bg-red-500'
+  }
+
+  const eopCount = markers.filter(m => m.source === 'eop').length
+  const osmCount = markers.filter(m => m.source === 'osm').length
+  const gisCount = markers.filter(m => m.source === 'gis').length
+  const activeCount = markers.filter(m => m.status === 'active').length
+
+  const filterProps = {
+    t, searchQuery, setSearchQuery, sourceFilter, setSourceFilter,
+    statusFilter, setStatusFilter, osmTypeFilter, setOsmTypeFilter,
+    gisTypeFilter, setGisTypeFilter, filteredMarkers, markers, lastUpdated,
+    mapLayer, setMapLayer
+  }
+
+  const activeFilterCount = [
+    searchQuery.trim() !== '',
+    statusFilter !== 'all',
+    osmTypeFilter !== 'all',
+    gisTypeFilter !== 'all',
+  ].filter(Boolean).length
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="animate-spin rounded-full h-14 w-14 border-4 border-primary-200 border-t-primary-600" />
+        <p className="text-gray-500 text-lg">{t('common.loading')}</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-        <p className="text-red-700">{error}</p>
-        <button 
-          onClick={() => fetchData()}
-          className="mt-4 btn-primary"
-        >
-          {t('common.retry')}
-        </button>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center max-w-md w-full">
+          <MapPin className="h-12 w-12 text-red-400 mx-auto mb-3" />
+          <p className="text-red-700 text-lg font-medium mb-4">{error}</p>
+          <button onClick={() => fetchData()} className="btn-primary w-full py-3 text-base">
+            {t('common.retry')}
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('map.title')}</h1>
-          <p className="text-gray-600 mt-1">
-            {t('map.description')}
-          </p>
+    <>
+      {/* ════════════════════════════════════════
+          FULLSCREEN OVERLAY (mobile tap-to-expand)
+          ════════════════════════════════════════ */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+
+          {/* Map — fills everything above the sheet */}
+          <div className="flex-1 relative">
+            <MapComponent 
+              sourceFilter={sourceFilter}
+              mapLayer={mapLayer}
+              filteredMarkers={filteredMarkers}
+              getMarkerColor={getMarkerColor}
+              t={t}
+              defaultCenter={defaultCenter}
+              defaultZoom={defaultZoom}
+            />
+
+            {/* Close button */}
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-4 right-4 z-[1000] bg-white rounded-full p-2.5 shadow-lg border border-gray-200 active:scale-95 transition-transform"
+              aria-label="Close fullscreen"
+            >
+              <X className="h-5 w-5 text-gray-700" />
+            </button>
+
+            {/* Filters toggle button — bottom center, above sheet */}
+            <button
+              onClick={() => setSheetOpen(v => !v)}
+              className={`absolute left-1/2 -translate-x-1/2 bottom-4 z-[1000] flex items-center gap-2 bg-white rounded-full px-5 py-3 shadow-lg border border-gray-200 font-medium text-gray-700 active:scale-95 transition-all duration-300`}
+            >
+              <Filter className="h-4 w-4" />
+              {sourceFilter === 'gis' ? 'Stara Zagora GIS' : t('map.filtersAndLegend')}
+              {activeFilterCount > 0 && sourceFilter !== 'gis' && (
+                <span className="bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Bottom sheet */}
+          <div
+            className={`bg-white transition-all duration-300 ease-in-out overflow-hidden ${
+              sheetOpen ? 'max-h-[60vh]' : 'max-h-0'
+            }`}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+            <div className="overflow-y-auto px-4 pb-6" style={{ maxHeight: 'calc(60vh - 24px)' }}>
+              <FiltersPanel {...filterProps} />
+            </div>
+          </div>
         </div>
-        
-        {/* Last updated & Refresh */}
-        <div className="flex items-center space-x-2">
-          {lastUpdated && (
-            <span className="text-sm text-gray-500">
-              {t('map.updated')}: {lastUpdated.toLocaleTimeString('bg-BG')}
-            </span>
-          )}
-          <button
-            onClick={checkStatus}
-            className="btn-secondary flex items-center space-x-2 text-sm"
-            title={t('map.checkDbStatus')}
-          >
-            <Info className="h-4 w-4" />
-            <span>{t('common.status')}</span>
-          </button>
-          <button
-            onClick={triggerDataFetch}
-            disabled={isFetching}
-            className="btn-secondary flex items-center space-x-2"
-            title={t('map.fetchFreshData')}
-          >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-            <span>{isFetching ? t('common.loading') : t('common.fetchData')}</span>
-          </button>
-          <button
-            onClick={triggerGeocode}
-            disabled={isGeocoding}
-            className="btn-secondary flex items-center space-x-2"
-            title="Run geocoding on unlocated tenders"
-          >
-            <LocateFixed className={`h-4 w-4 ${isGeocoding ? 'animate-pulse' : ''}`} />
-            <span>{isGeocoding ? t('common.loading') : t('map.geocode')}</span>
-          </button>
+      )}
+
+      {/* ════════════════════════════════════════
+          NORMAL PAGE LAYOUT
+          ════════════════════════════════════════ */}
+      <div className="flex flex-col gap-4 pb-6">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{t('map.title')}</h1>
+            <p className="text-gray-500 text-sm mt-0.5">{t('map.description')}</p>
+          </div>
           <button
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            className="btn-secondary flex items-center space-x-2"
+            className="self-start sm:self-auto flex items-center gap-2 btn-secondary text-sm px-4 py-2"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>{refreshing ? t('common.loading') : t('common.refresh')}</span>
+            {refreshing ? t('common.loading') : t('common.refresh')}
           </button>
         </div>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{ t('map.publicTenders') }</p>
-              <p className="text-2xl font-bold text-blue-600">{eopCount}</p>
-            </div>
-            <Building className="h-8 w-8 text-blue-200" />
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t('map.pointsOfInterest')}</p>
-              <p className="text-2xl font-bold text-purple-600">{osmCount}</p>
-            </div>
-            <MapPin className="h-8 w-8 text-purple-200" />
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t('map.activeProjects')}</p>
-              <p className="text-2xl font-bold text-green-600">
-                {markers.filter(m => m.status === 'active').length}
-              </p>
-            </div>
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">{t('map.totalMarkers')}</p>
-              <p className="text-2xl font-bold text-gray-600">{markers.length}</p>
-            </div>
-            <MapPin className="h-8 w-8 text-gray-200" />
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="card">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('map.searchPlaceholder')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input-field pl-10"
-            />
-          </div>
-
-          {/* Data Source Filters */}
-          <div className="flex items-center space-x-2">
-            <Layers className="h-5 w-5 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">{t('map.sources')}:</span>
-            {DATA_SOURCES.map(source => (
-              <button
-                key={source.id}
-                onClick={() => toggleSourceFilter(source.id)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  sourceFilter.includes(source.id)
-                    ? 'text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                style={{
-                  backgroundColor: sourceFilter.includes(source.id) ? source.color : undefined
-                }}
-              >
-                {source.label}
-              </button>
-            ))}
-          </div>
-
-          {/* EOP Status Filter */}
-          {sourceFilter.includes('eop') && (
-            <div className="flex items-center space-x-2">
-              <Filter className="h-5 w-5 text-gray-500" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="input-field w-36"
-              >
-                <option value="all">{t('map.allStatus')}</option>
-                <option value="planned">{t('status.planned')}</option>
-                <option value="active">{t('status.active')}</option>
-                <option value="completed">{t('status.completed')}</option>
-                <option value="cancelled">{t('status.cancelled')}</option>
-              </select>
-            </div>
-          )}
-
-          {/* OSM Type Filter */}
-          {sourceFilter.includes('osm') && (
-            <div className="flex items-center space-x-2">
-              <select
-                value={osmTypeFilter}
-                onChange={(e) => setOsmTypeFilter(e.target.value)}
-                className="input-field w-36"
-              >
-                <option value="all">{t('map.allTypes')}</option>
-                {OSM_TYPES.map(type => (
-                  <option key={type.id} value={type.id}>{type.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* Results count */}
-        <p className="text-sm text-gray-500 mt-3">
-          {t('map.showing', { filtered: filteredMarkers.length, total: markers.length })}
-          {lastUpdated && ` • ${t('map.autoRefresh', { min: AUTO_REFRESH_INTERVAL / 60000 })}`}
-        </p>
-      </div>
-
-      {/* Map Container */}
-      <div className="card p-0 overflow-hidden">
-        <div className="h-[600px] w-full">
-          <MapContainer
-            center={defaultCenter}
-            zoom={defaultZoom}
-            scrollWheelZoom={true}
-            style={{ height: '100%', width: '100%' }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            
-            {filteredMarkers.map((marker, idx) => (
-              <Marker
-                key={`${marker.source}-${marker.id ?? idx}`}
-                position={[parseFloat(marker.lat), parseFloat(marker.lng)]}
-                icon={createCustomIcon(getMarkerColor(marker))}
-              >
-                <Popup>
-                  <div className="p-2 min-w-[250px]">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-bold text-lg text-gray-900 flex-1">
-                        {marker.title}
-                      </h3>
-                      <span 
-                        className="text-xs px-2 py-0.5 rounded-full text-white ml-2"
-                        style={{ backgroundColor: getMarkerColor(marker) }}
-                      >
-                        {marker.source.toUpperCase()}
-                      </span>
-                    </div>
-                    
-                    {/* EOP-specific content */}
-                    {marker.source === 'eop' && (
-                      <>
-                        <span className={getStatusBadge(marker.status)}>
-                          {marker.status}
-                        </span>
-                        
-                        {marker.description && (
-                          <p className="text-sm text-gray-600 mt-3 line-clamp-3">
-                            {marker.description}
-                          </p>
-                        )}
-                        
-                        <div className="mt-3 space-y-2 text-sm">
-                          {marker.budget && (
-                            <div className="flex items-center text-gray-700">
-                              <DollarSign className="h-4 w-4 mr-2 text-secondary-600" />
-                              <span className="font-medium">
-                                {formatCurrency(marker.budget)}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {marker.contractor && (
-                            <div className="flex items-center text-gray-700">
-                              <Building className="h-4 w-4 mr-2 text-primary-600" />
-                              <span>{marker.contractor}</span>
-                            </div>
-                          )}
-                          
-                          {marker.address && (
-                            <div className="flex items-center text-gray-700">
-                              <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                              <span>{marker.address}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {marker.url && (
-                          <a 
-                            href={marker.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="mt-3 block text-sm text-blue-600 hover:underline"
-                          >
-                            {t('map.viewSource')} →
-                          </a>
-                        )}
-                      </>
-                    )}
-
-                    {/* OSM-specific content */}
-                    {marker.source === 'osm' && (
-                      <div className="mt-2">
-                        <span 
-                          className="text-xs px-2 py-0.5 rounded-full text-white"
-                          style={{ backgroundColor: getMarkerColor(marker) }}
-                        >
-                          {marker.type?.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="card">
-        <div className="flex items-center space-x-2 mb-3">
-          <Info className="h-5 w-5 text-gray-500" />
-          <h3 className="font-semibold text-gray-900">{t('map.legend')}</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* EOP Legend */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">{t('map.source.eop')}</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow mr-2"></div>
-                <span>{t('status.completed')}</span>
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: t('map.publicTenders'),    value: eopCount,    color: 'text-blue-600',   bg: 'bg-blue-50',   dot: 'bg-blue-500' },
+            { label: t('map.pointsOfInterest'), value: osmCount,    color: 'text-purple-600', bg: 'bg-purple-50', dot: 'bg-purple-500' },
+            { label: 'GIS Status', value: getGisStatusValue(), color: getGisStatusColor(), bg: getGisStatusBg(), dot: getGisStatusDot() },
+            { label: t('map.totalMarkers'),     value: markers.length, color: 'text-gray-700', bg: 'bg-gray-50', dot: 'bg-gray-400' },
+          ].map(s => (
+            <div key={s.label} className={`${s.bg} rounded-xl p-4 flex flex-col gap-1`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${s.dot}`} />
+                <span className="text-xs text-gray-500 leading-tight">{s.label}</span>
               </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow mr-2"></div>
-                <span>{t('status.active')}</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-amber-500 border-2 border-white shadow mr-2"></div>
-                <span>{t('status.planned')}</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow mr-2"></div>
-                <span>{t('status.cancelled')}</span>
-              </div>
+              <span className={`text-2xl font-bold ${s.color}`}>{s.value}</span>
             </div>
+          ))}
+        </div>
+
+        {/* Mobile hint strip */}
+        <div className="sm:hidden bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-blue-700">
+          <MapPin className="h-4 w-4 shrink-0" />
+          {t('map.tapToFullscreen')}
+        </div>
+
+        {/* Map */}
+        <div
+          className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative"
+          style={{ height: 'clamp(280px, 50vw, 620px)' }}
+        >
+          <MapComponent 
+            sourceFilter={sourceFilter}
+            mapLayer={mapLayer}
+            filteredMarkers={filteredMarkers}
+            getMarkerColor={getMarkerColor}
+            t={t}
+            defaultCenter={defaultCenter}
+            defaultZoom={defaultZoom}
+          />
+
+          {/* Filter button — top right of map, desktop */}
+          <div className={`hidden sm:block absolute z-[1000] transition-all duration-300 ${
+            sourceFilter === 'gis' 
+              ? 'top-3 left-1/2 -translate-x-1/2' 
+              : 'top-3 right-3 translate-x-0'
+          }`}>
+            <FilterDropdown t={t} filterProps={filterProps} activeFilterCount={activeFilterCount} />
           </div>
 
-          {/* OSM Legend */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">{t('map.source.osm')}</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {OSM_TYPE_IDS.map(type => (
-                <div key={type.id} className="flex items-center">
-                  <div className="w-4 h-4 rounded-full border-2 border-white shadow mr-2" style={{ backgroundColor: type.color }}></div>
-                  <span>{t(`map.osm.${type.id}`)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Mobile tap-to-fullscreen overlay — invisible but captures the tap */}
+          <div
+            className="sm:hidden absolute inset-0 z-[500] cursor-pointer"
+            onClick={() => setIsFullscreen(true)}
+            aria-label={t('map.tapToFullscreen')}
+          />
         </div>
-      </div>
 
-      {/* Data Sources Info */}
-      <div className="card bg-blue-50 border-blue-200">
-        <h3 className="font-semibold text-blue-900 mb-2">📡 {t('map.dataSources')}</h3>
-        <div className="text-sm text-blue-800 space-y-1">
-          <p>• <strong>ЦАИС ЕОП (eop.bg)</strong> — {t('map.eopDesc')}</p>
-          <p>• <strong>OpenStreetMap</strong> — {t('map.osmDesc')}</p>
-          <p>• <strong>data.egov.bg</strong> — {t('map.egovDesc')}</p>
-        </div>
-        <p className="text-xs text-blue-600 mt-2">
-          {t('map.autoRefreshNote', { min: AUTO_REFRESH_INTERVAL / 60000 })} {t('map.lastUpdate')}: {lastUpdated?.toLocaleString('bg-BG') || t('map.never')}
-        </p>
       </div>
-    </div>
+    </>
   )
 }
 
 export default MapPage
-
