@@ -79,11 +79,51 @@ router.get('/:filename', (req, res) => {
     
     let filePath = null;
     
-    // Find the file in one of the directories
+    // 1. Exact match
     for (const testPath of possiblePaths) {
       if (fs.existsSync(testPath)) {
-        filePath = testPath;
-        break;
+        filePath = testPath
+        break
+      }
+    }
+
+    // 2. Fuzzy match — search budget-pdfs and all subdirs under root/info/wqoidcwd/budjet
+    if (!filePath) {
+      const searchDirs = [
+        path.join(__dirname, '..', 'budget-pdfs'),
+        path.join(__dirname, '..', 'root', 'info', 'wqoidcwd', 'budjet'),
+      ]
+
+      // Collect all PDFs recursively
+      const allPdfs = []
+      const collectPdfs = (dir) => {
+        if (!fs.existsSync(dir)) return
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name)
+          if (entry.isDirectory()) collectPdfs(full)
+          else if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) allPdfs.push(full)
+        }
+      }
+      searchDirs.forEach(collectPdfs)
+
+      // Strip multer prefix: "admin-DIGITS-DIGITS-"
+      const stripped = filename.replace(/^[^-]+-\d+-\d+-/, '').toLowerCase()
+      const strippedNorm = stripped.replace(/[_]+/g, ' ')
+      const words = strippedNorm.split(/[\s\W]+/).filter(w => w.length >= 2)
+
+      let bestScore = 0
+      let bestFile = null
+      for (const fullPath of allPdfs) {
+        const dfLower = path.basename(fullPath).toLowerCase().replace(/[_]+/g, ' ')
+        const score = words.filter(w => dfLower.includes(w)).length
+        if (score > bestScore) {
+          bestScore = score
+          bestFile = fullPath
+        }
+      }
+
+      if (bestFile && bestScore >= 2) {
+        filePath = bestFile
       }
     }
     

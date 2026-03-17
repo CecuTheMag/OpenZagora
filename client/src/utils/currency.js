@@ -7,7 +7,7 @@ export const bgnToEur = (bgn) => bgn / BGN_TO_EUR
 export const formatCurrency = (amount) => {
   if (amount === null || amount === undefined) return 'N/A'
   const eur = bgnToEur(parseFloat(amount))
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 0,

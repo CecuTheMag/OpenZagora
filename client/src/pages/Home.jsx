@@ -6,6 +6,7 @@
  */
 
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { formatCurrency } from '../utils/currency.js'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
@@ -136,16 +137,6 @@ function Home() {
     } finally {
       setLoading(false)
     }
-  }
-
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('bg-BG', {
-      style: 'currency',
-      currency: 'BGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
   }
 
   // Format date

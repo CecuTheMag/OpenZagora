@@ -1,12 +1,11 @@
-# Open Zagora - Docker Compose Configuration
-# This file sets up the complete application stack with one command
+# Open Zagora - Main Docker Compose
+# Includes HTTPS via Caddy (port 443) + all dev services
 
 version: '3.8'
 
 services:
-  # PostgreSQL Database
   db:
-    image: docker.io/postgis/postgis:15-3.4-alpine
+    image: postgis/postgis:15-3.4-alpine
     container_name: open-zagora-db
     restart: unless-stopped
     environment:
@@ -17,7 +16,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./server/db/data_pipeline_schema.sql:/docker-entrypoint-initdb.d/02-data-pipeline-schema.sql:ro
+      - ./server/db/budget_schema.sql:/docker-entrypoint-initdb.d/02-budget-schema.sql:ro
+      - ./server/db/data_pipeline_schema.sql:/docker-entrypoint-initdb.d/03-data-pipeline-schema.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -28,26 +28,32 @@ services:
     networks:
       - open-zagora-network
 
-  # Backend API Server
   server:
     build:
       context: ./server
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: open-zagora-server
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 5000
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: open_zagora
       DB_USER: postgres
       DB_PASSWORD: postgres
-      CLIENT_URL: http://localhost
+      CLIENT_URL: https://openzagora.duckdns.org
     volumes:
       - uploads_data:/app/uploads
       - parsed_data:/app/parsed
-      - ./:/app/root
+      - ./server/server.js:/app/server.js
+      - ./server/db:/app/db
+      - ./server/routes:/app/routes
+      - ./server/services:/app/services
+      - ./server/scripts:/app/scripts
+      - ./server/uploads:/app/uploads
+      - ./server/parsed:/app/parsed
+      - ./server/budget-pdfs:/app/budget-pdfs
     ports:
       - "5000:5000"
     depends_on:
@@ -61,25 +67,27 @@ services:
     networks:
       - open-zagora-network
 
-  # Frontend React App
   client:
     build:
       context: ./client
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: open-zagora-client
     restart: unless-stopped
+    environment:
+      VITE_API_URL: /api
+    volumes:
+      - ./client/index.html:/app/index.html
+      - ./client/vite.config.js:/app/vite.config.js
+      - ./client/package.json:/app/package.json
+      - ./client/src:/app/src
+      - ./client/public:/app/public
     ports:
-      - "80:80"
+      - "5173:5173"
     depends_on:
       - server
     networks:
       - open-zagora-network
 
-  # ==========================================
-  # ADMIN SYSTEM (COMPLETELY SEPARATE)
-  # ==========================================
-
-  # Admin PostgreSQL Database (Separate from main DB)
   admin-db:
     image: postgres:15-alpine
     container_name: open-zagora-admin-db
@@ -102,32 +110,35 @@ services:
     networks:
       - open-zagora-network
 
-  # Admin Backend API Server
   admin-server:
     build:
       context: ./admin-server
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: open-zagora-admin-server
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       ADMIN_PORT: 5001
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
+      JWT_SECRET: dev-jwt-secret-change-in-production-min-32-chars-long
       JWT_EXPIRES_IN: 24h
-      ADMIN_CLIENT_URL: http://localhost:8080
-      # Admin Database Connection
+      ADMIN_CLIENT_URL: http://localhost:5174
       ADMIN_DB_HOST: admin-db
       ADMIN_DB_PORT: 5432
       ADMIN_DB_NAME: openzagora_admin
       ADMIN_DB_USER: admin_user
       ADMIN_DB_PASSWORD: admin_pass
-      # Main Database Connection (for PDF storage)
       MAIN_DB_HOST: db
       MAIN_DB_PORT: 5432
       MAIN_DB_NAME: open_zagora
       MAIN_DB_USER: postgres
       MAIN_DB_PASSWORD: postgres
     volumes:
+      - ./admin-server/server.js:/app/server.js
+      - ./admin-server/db:/app/db
+      - ./admin-server/routes:/app/routes
+      - ./admin-server/middleware:/app/middleware
+      - ./admin-server/parsers:/app/parsers
+      - ./admin-server/scripts:/app/scripts
       - admin_uploads_data:/app/uploads
       - admin_parsed_data:/app/parsed
     ports:
@@ -137,29 +148,47 @@ services:
         condition: service_healthy
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
     networks:
       - open-zagora-network
 
-  # Admin Frontend React App
   admin-client:
     build:
       context: ./admin-client
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: open-zagora-admin-client
     restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5001
+    volumes:
+      - ./admin-client/index.html:/app/index.html
+      - ./admin-client/vite.config.js:/app/vite.config.js
+      - ./admin-client/package.json:/app/package.json
+      - ./admin-client/src:/app/src
     ports:
-      - "8080:80"
+      - "5174:5174"
     depends_on:
       - admin-server
     networks:
       - open-zagora-network
 
-# Named volumes for data persistence
+  caddy:
+    image: caddy:alpine
+    container_name: open-zagora-caddy
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+      - client
+      - admin-server
+    networks:
+      - open-zagora-network
+
 volumes:
   postgres_data:
     driver: local
@@ -167,15 +196,15 @@ volumes:
     driver: local
   parsed_data:
     driver: local
-  # Admin volumes
   admin_postgres_data:
     driver: local
   admin_uploads_data:
     driver: local
   admin_parsed_data:
     driver: local
+  caddy_data:
+  caddy_config:
 
-# Network for service communication
 networks:
   open-zagora-network:
     driver: bridge

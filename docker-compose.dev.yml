@@ -55,6 +55,7 @@ services:
       - ./server/scripts:/app/scripts:Z
       - ./server/uploads:/app/uploads:Z
       - ./server/parsed:/app/parsed:Z
+      - ./server/budget-pdfs:/app/budget-pdfs:Z
     ports:
       - "5000:5000"
     depends_on:
