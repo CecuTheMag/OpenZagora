@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import L from 'leaflet'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000
 
 delete L.Icon.Default.prototype._getIconUrl
