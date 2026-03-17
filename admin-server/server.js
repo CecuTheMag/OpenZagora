@@ -59,26 +59,8 @@ app.use(helmet({
 // CORS configuration - allow all origins in development, restrict in production
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // In development, allow all origins
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    
-    // In production, check against allowed list
-    const allowedOrigins = [
-      'http://localhost:5174',
-      'http://192.168.88.208:5174',
-      process.env.ADMIN_CLIENT_URL || 'http://localhost:5174'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    // Allow all origins
+    return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
