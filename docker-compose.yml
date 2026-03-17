@@ -44,8 +44,6 @@ services:
       DB_PASSWORD: postgres
       CLIENT_URL: https://openzagora.duckdns.org
     volumes:
-      - uploads_data:/app/uploads
-      - parsed_data:/app/parsed
       - ./server/server.js:/app/server.js
       - ./server/db:/app/db
       - ./server/routes:/app/routes
@@ -139,8 +137,6 @@ services:
       - ./admin-server/middleware:/app/middleware
       - ./admin-server/parsers:/app/parsers
       - ./admin-server/scripts:/app/scripts
-      - admin_uploads_data:/app/uploads
-      - admin_parsed_data:/app/parsed
     ports:
       - "5001:5001"
     depends_on:
@@ -192,15 +188,7 @@ services:
 volumes:
   postgres_data:
     driver: local
-  uploads_data:
-    driver: local
-  parsed_data:
-    driver: local
   admin_postgres_data:
-    driver: local
-  admin_uploads_data:
-    driver: local
-  admin_parsed_data:
     driver: local
   caddy_data:
   caddy_config:
