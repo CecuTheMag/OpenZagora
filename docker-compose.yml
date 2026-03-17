@@ -68,19 +68,11 @@ services:
   client:
     build:
       context: ./client
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: open-zagora-client
     restart: unless-stopped
-    environment:
-      VITE_API_URL: /api
-    volumes:
-      - ./client/index.html:/app/index.html
-      - ./client/vite.config.js:/app/vite.config.js
-      - ./client/package.json:/app/package.json
-      - ./client/src:/app/src
-      - ./client/public:/app/public
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - server
     networks:

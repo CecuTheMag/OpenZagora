@@ -22,7 +22,7 @@ openzagora.duckdns.org {
     }
 
     handle {
-        reverse_proxy client:5173
+        reverse_proxy client:80
     }
 }
 
