@@ -1,8 +1,7 @@
 openzagora.duckdns.org {
     tls kironotificatora@gmail.com
 
-    handle_path /admin-api/* {
-        uri strip_prefix /admin-api
+    handle /admin-api/* {
         reverse_proxy admin-server:5001 {
             header_up Host {upstream_hostport}
             header_up X-Real-IP {remote_host}
@@ -11,8 +10,7 @@ openzagora.duckdns.org {
         }
     }
 
-    handle_path /api/* {
-        uri strip_prefix /api
+    handle /api/* {
         reverse_proxy server:5000 {
             header_up Host {upstream_hostport}
             header_up X-Real-IP {remote_host}

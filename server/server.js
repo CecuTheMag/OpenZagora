@@ -47,6 +47,7 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:5173',
       'http://192.168.88.210:5173',
+      'https://openzagora.duckdns.org',
       process.env.CLIENT_URL || 'http://localhost:5173'
     ];
     
