@@ -22,6 +22,7 @@ const fileRoutes = require('./routes/files');
 const scraperRoutes = require('./routes/scraper');
 const osmRoutes = require('./routes/osm');
 const eopRoutes = require('./routes/eop');
+const newsRoutes = require('./routes/news');
 
 // Initialize Express application
 const app = express();
@@ -93,6 +94,7 @@ app.use('/api/files', fileRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/osm', osmRoutes);
 app.use('/api/eop', eopRoutes);
+app.use('/api/news', newsRoutes);
 
 // ==========================================
 // ERROR HANDLING

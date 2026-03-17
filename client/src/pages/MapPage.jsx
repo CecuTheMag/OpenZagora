@@ -149,7 +149,7 @@ function MarkerLayer({ markers, getMarkerColor, t }) {
             // Multiple markers at same location - scrollable list
             <div className="p-2">
               <div className="text-xs text-gray-500 mb-3 text-center">
-                {markersAtLocation.length} items at this location
+                {t('map.itemsAtLocation', { count: markersAtLocation.length })}
               </div>
               <div className="max-h-80 overflow-y-auto space-y-3">
                 {markersAtLocation.map((marker, idx) => (
@@ -331,7 +331,7 @@ function FiltersPanel({ t, searchQuery, setSearchQuery, sourceFilter, setSourceF
                   mapLayer === key ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}
               >
-                {key === 'osm' ? 'OSM' : 'Satellite'}
+                {key === 'osm' ? t('map.tileOsm') : t('map.tileSatellite')}
               </button>
             ))}
           </div>
@@ -378,11 +378,11 @@ function FiltersPanel({ t, searchQuery, setSearchQuery, sourceFilter, setSourceF
           <div className="flex items-start gap-2">
             <ExternalLink className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-green-900">Stara Zagora GIS</p>
+              <p className="text-sm font-medium text-green-900">{t('map.source.gis')}</p>
               <p className="text-xs text-green-700 mt-1">{t('map.gisDesc')}</p>
               <a 
-                href="https://gis.starazagora.bg/" 
-                target="_blank" 
+                href="https://gis.starazagora.bg/"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-green-600 hover:text-green-800 underline mt-1 inline-block"
               >
@@ -647,15 +647,12 @@ function MapPage() {
       const eop = eopRes.status === 'fulfilled' ? eopRes.value.data : null
       const osm = osmRes.status === 'fulfilled' ? osmRes.value.data : null
       const lines = []
-      if (eop?.success) lines.push(`EOP: ${eop.data.import.imported} нови, ${eop.data.import.updated} обновени`)
-      else lines.push('EOP: неуспешно')
-      if (osm?.success) lines.push(`OSM: ${osm.data.totalSaved} обекта запазени`)
-      else lines.push('OSM: неуспешно')
-      lines.push('\nГеолокирането върви на заден план — обнови картата след няколко минути.')
+      if (eop?.success) lines.push(t('map.fetchSuccess', { imported: eop.data.import.imported, updated: eop.data.import.updated }))
+      else lines.push(t('map.fetchEopFail'))
       alert(lines.join('\n'))
       setTimeout(() => fetchData(true), 2000)
     } catch (e) {
-      alert('Грешка: ' + (e.response?.data?.message || e.message))
+      alert(t('map.errorPrefix') + (e.response?.data?.message || e.message))
     } finally {
       setIsFetching(false)
     }
@@ -666,18 +663,18 @@ function MapPage() {
       setIsGeocoding(true)
       await axios.post(`${API_URL}/eop/geocode`, { method: 'hybrid' })
       await axios.post(`${API_URL}/eop/geocode`, { method: 'poi' })
-      alert('Геолокирането стартира на заден план.\nОбнови картата след няколко минути.')
+      alert(t('map.geocodeStarted'))
       setTimeout(() => fetchData(true), 3000)
     } catch (e) {
-      alert('Грешка: ' + (e.response?.data?.message || e.message))
+      alert(t('map.errorPrefix') + (e.response?.data?.message || e.message))
     } finally {
       setIsGeocoding(false)
     }
   }
 
   const getGisStatusValue = () => {
-    if (gisStatus === 'checking') return '...'
-    return gisStatus === 'active' ? 'Active' : 'Inactive'
+    if (gisStatus === 'checking') return t('map.gisChecking')
+    return gisStatus === 'active' ? t('map.gisActive') : t('map.gisInactive')
   }
 
   const getGisStatusColor = () => {
@@ -772,7 +769,7 @@ function MapPage() {
               className={`absolute left-1/2 -translate-x-1/2 bottom-4 z-[1000] flex items-center gap-2 bg-white rounded-full px-5 py-3 shadow-lg border border-gray-200 font-medium text-gray-700 active:scale-95 transition-all duration-300`}
             >
               <Filter className="h-4 w-4" />
-              {sourceFilter === 'gis' ? 'Stara Zagora GIS' : t('map.filtersAndLegend')}
+              {sourceFilter === 'gis' ? t('map.source.gis') : t('map.filtersAndLegend')}
               {activeFilterCount > 0 && sourceFilter !== 'gis' && (
                 <span className="bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
                   {activeFilterCount}
@@ -824,7 +821,7 @@ function MapPage() {
           {[
             { label: t('map.publicTenders'),    value: eopCount,    color: 'text-blue-600',   bg: 'bg-blue-50',   dot: 'bg-blue-500' },
             { label: t('map.pointsOfInterest'), value: osmCount,    color: 'text-purple-600', bg: 'bg-purple-50', dot: 'bg-purple-500' },
-            { label: 'GIS Status', value: getGisStatusValue(), color: getGisStatusColor(), bg: getGisStatusBg(), dot: getGisStatusDot() },
+            { label: t('map.gisStatus'), value: getGisStatusValue(), color: getGisStatusColor(), bg: getGisStatusBg(), dot: getGisStatusDot() },
             { label: t('map.totalMarkers'),     value: markers.length, color: 'text-gray-700', bg: 'bg-gray-50', dot: 'bg-gray-400' },
           ].map(s => (
             <div key={s.label} className={`${s.bg} rounded-xl p-4 flex flex-col gap-1`}>

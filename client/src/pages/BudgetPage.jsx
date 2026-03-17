@@ -338,7 +338,7 @@ function BudgetPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{t('budget.title', { year: selectedYear })}</h1>
           <p className="text-gray-600 mt-1">
@@ -363,20 +363,20 @@ function BudgetPage() {
 
       {/* Tab Navigation */}
       <div className="border-b border-gray-200">
-        <nav className="flex space-x-8 overflow-x-auto">
+        <nav className="flex overflow-x-auto scrollbar-hide -mb-px">
           {TABS.map((tab) => {
             const Icon = tab.icon
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`flex items-center gap-1.5 py-3 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span>{tab.label}</span>
               </button>
             )
@@ -598,7 +598,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
   return (
     <div className="space-y-6">
       {/* Executive Summary Cards - KPI Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Income */}
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200 shadow-sm">
           <div className="flex items-start justify-between">
@@ -668,7 +668,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       </div>
 
       {/* Quick Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Active Loans */}
         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -713,7 +713,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Income Distribution Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -756,10 +756,10 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
                   />
                 </PieChart>
               ) : (
-                <BarChart data={incomeChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
+                <BarChart data={incomeChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(v) => formatMillions(v)} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{fontSize: 11}} />
+                  <XAxis type="number" tickFormatter={(v) => formatMillions(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={80} tick={{fontSize: 10}} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="value" name="Amount" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                 </BarChart>
@@ -810,10 +810,10 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
                   />
                 </PieChart>
               ) : (
-                <BarChart data={expenseChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
+                <BarChart data={expenseChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(v) => formatMillions(v)} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{fontSize: 11}} />
+                  <XAxis type="number" tickFormatter={(v) => formatMillions(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={80} tick={{fontSize: 10}} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="value" name="Amount" fill="#ef4444" radius={[0, 4, 4, 0]} />
                 </BarChart>
@@ -852,7 +852,7 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       </div>
 
       {/* Detailed Tables Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Top Income Sources Table */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -863,32 +863,32 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
             <span className="text-sm text-gray-500">{t('label.of', { count: topIncomeSources.length, total: incomeData.length })}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[480px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.source')}</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
+                  <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
+                  <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.source')}</th>
+                  <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                  <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {topIncomeSources.map((item, index) => (
                   <tr key={item.code || index} className="hover:bg-gray-50">
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-3 sm:px-4">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         {item.code}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-900 truncate max-w-[150px]" title={item.name}>
+                    <td className="py-3 px-3 sm:px-4 text-sm text-gray-900 truncate max-w-[120px] sm:max-w-[150px]" title={item.name}>
                       {item.name}
                     </td>
-                    <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    <td className="py-3 px-3 sm:px-4 text-right font-medium text-gray-900 text-sm">
                       {formatCurrency(item.amount)}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-3 sm:px-4 text-right">
                       <div className="flex items-center justify-end">
-                        <div className="w-16 bg-gray-200 rounded-full h-1.5 mr-2">
+                        <div className="w-10 sm:w-16 bg-gray-200 rounded-full h-1.5 mr-1 sm:mr-2">
                           <div 
                             className="h-1.5 rounded-full bg-blue-500"
                             style={{ width: `${totals.income > 0 ? ((item.amount / totals.income) * 100) : 0}%` }}
@@ -904,11 +904,11 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>{t('table.total')}</td>
-                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-3 px-3 sm:px-4 text-gray-900 font-semibold" colSpan={2}>{t('table.total')}</td>
+                  <td className="py-3 px-3 sm:px-4 text-right font-semibold text-gray-900 text-sm">
                     {formatCurrency(topIncomeSources.reduce((s, i) => s + i.amount, 0))}
                   </td>
-                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-3 px-3 sm:px-4 text-right font-semibold text-gray-900">
                     {totals.income > 0 ? ((topIncomeSources.reduce((s, i) => s + i.amount, 0) / totals.income) * 100).toFixed(1) : 0}%
                   </td>
                 </tr>
@@ -927,19 +927,19 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
             <span className="text-sm text-gray-500">{t('label.functions', { count: topExpenseCategories.length })}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[480px]">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.function')}</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
+                  <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
+                  <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.function')}</th>
+                  <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                  <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {topExpenseCategories.map((item, index) => (
                   <tr key={item.code || index} className="hover:bg-gray-50">
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-3 sm:px-4">
                       <span 
                         className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white"
                         style={{ backgroundColor: FUNCTION_COLORS[item.code] || '#6b7280' }}
@@ -947,15 +947,15 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
                         {item.code}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-900 truncate max-w-[150px]" title={item.name}>
+                    <td className="py-3 px-3 sm:px-4 text-sm text-gray-900 truncate max-w-[120px] sm:max-w-[150px]" title={item.name}>
                       {item.name}
                     </td>
-                    <td className="py-3 px-4 text-right font-medium text-gray-900">
+                    <td className="py-3 px-3 sm:px-4 text-right font-medium text-gray-900 text-sm">
                       {formatCurrency(item.amount)}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-3 sm:px-4 text-right">
                       <div className="flex items-center justify-end">
-                        <div className="w-16 bg-gray-200 rounded-full h-1.5 mr-2">
+                        <div className="w-10 sm:w-16 bg-gray-200 rounded-full h-1.5 mr-1 sm:mr-2">
                           <div 
                             className="h-1.5 rounded-full"
                             style={{ 
@@ -974,11 +974,11 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td className="py-3 px-4 text-gray-900 font-semibold" colSpan={2}>{t('table.total')}</td>
-                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-3 px-3 sm:px-4 text-gray-900 font-semibold" colSpan={2}>{t('table.total')}</td>
+                  <td className="py-3 px-3 sm:px-4 text-right font-semibold text-gray-900 text-sm">
                     {formatCurrency(topExpenseCategories.reduce((s, i) => s + i.amount, 0))}
                   </td>
-                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-3 px-3 sm:px-4 text-right font-semibold text-gray-900">
                     {totals.expenses > 0 ? ((topExpenseCategories.reduce((s, i) => s + i.amount, 0) / totals.expenses) * 100).toFixed(1) : 0}%
                   </td>
                 </tr>
@@ -998,14 +998,14 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
           <span className="text-sm text-gray-500">{incomeData.length} line items</span>
         </div>
         <div className="overflow-x-auto max-h-96">
-          <table className="w-full">
+          <table className="w-full min-w-[500px]">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.name')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.categoryShare')}</th>
+                <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.code')}</th>
+                <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.name')}</th>
+                <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
+                <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.categoryShare')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1067,13 +1067,13 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
           <span className="text-sm text-gray-500">{expenseData.length} line items</span>
         </div>
         <div className="overflow-x-auto max-h-96">
-          <table className="w-full">
+          <table className="w-full min-w-[480px]">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.function')}</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.program')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
+                <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.function')}</th>
+                <th className="text-left py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.program')}</th>
+                <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.amount')}</th>
+                <th className="text-right py-3 px-3 sm:px-4 font-semibold text-gray-900 text-xs uppercase">{t('table.percentTotal')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1132,8 +1132,8 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1143,13 +1143,11 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-600">{data.length} items</span>
-          <span className="text-sm text-gray-600">•</span>
-          <span className="text-sm font-medium text-gray-900">{formatCurrency(totalAmount)}</span>
+        <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+          <span className="text-sm text-gray-600">{data.length} items • {formatCurrency(totalAmount)}</span>
           <button
             onClick={() => exportToCSV(data, 'income')}
-            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <Download className="h-4 w-4" />
             <span>{t('common.export')}</span>
@@ -1160,7 +1158,7 @@ function IncomeTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, fo
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[480px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">
@@ -1276,8 +1274,8 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1287,13 +1285,11 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-600">{data.length} items</span>
-          <span className="text-sm text-gray-600">•</span>
-          <span className="text-sm font-medium text-gray-900">{formatCurrency(totalAmount)}</span>
+        <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+          <span className="text-sm text-gray-600">{data.length} items • {formatCurrency(totalAmount)}</span>
           <button
             onClick={() => exportToCSV(data, 'expenses')}
-            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <Download className="h-4 w-4" />
             <span>{t('common.export')}</span>
@@ -1302,7 +1298,7 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
       </div>
 
       {/* Function Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {groupedByFunction.slice(0, 6).map((func) => (
           <div 
             key={func.code}
@@ -1340,15 +1336,7 @@ function ExpensesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
       {/* Detailed Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.function')}</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.program')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.amount')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.percentTotal')}</th>
-              </tr>
-            </thead>
+          <table className="w-full min-w-[480px]">
             <tbody className="divide-y divide-gray-100">
               {data.slice(0, 50).map((item, index) => (
                 <tr key={item.id || index} className="hover:bg-gray-50">
@@ -1419,8 +1407,8 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1430,18 +1418,18 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
           <div className="text-sm">
-            <span className="text-gray-600">Approved: </span>
+            <span className="text-gray-600">{t('table.approved')}: </span>
             <span className="font-medium text-gray-900">{formatCurrency(totalApproved)}</span>
           </div>
           <div className="text-sm">
-            <span className="text-gray-600">Executed: </span>
+            <span className="text-gray-600">{t('table.executed')}: </span>
             <span className="font-medium text-green-600">{formatCurrency(totalExecuted)}</span>
           </div>
           <button
             onClick={() => exportToCSV(data, 'indicators')}
-            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <Download className="h-4 w-4" />
             <span>{t('common.export')}</span>
@@ -1450,7 +1438,7 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
       </div>
 
       {/* Indicator Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {groupedByIndicator.slice(0, 8).map((ind) => (
           <div 
             key={ind.code}
@@ -1477,7 +1465,7 @@ function IndicatorsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort
       {/* Detailed Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[500px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.indicator')}</th>
@@ -1534,8 +1522,8 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1545,13 +1533,11 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-600">{data.length} loans</span>
-          <span className="text-sm text-gray-600">•</span>
-          <span className="text-sm font-medium text-gray-900">Total: {formatCurrency(totalAmount)}</span>
+        <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+          <span className="text-sm text-gray-600">{data.length} loans • {formatCurrency(totalAmount)}</span>
           <button
             onClick={() => exportToCSV(data, 'loans')}
-            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <Download className="h-4 w-4" />
             <span>{t('common.export')}</span>
@@ -1560,7 +1546,7 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
       </div>
 
       {/* Loan Types Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {loanTypes.slice(0, 4).map((type) => {
           const typeData = data.filter(d => d.loan_type === type)
           const typeTotal = typeData.reduce((sum, item) => sum + parseFloat(item.original_amount || 0), 0)
@@ -1581,7 +1567,7 @@ function LoansTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, for
       {/* Loans Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[560px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.type')}</th>
@@ -1639,8 +1625,8 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1650,13 +1636,11 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-600">{data.length} villages</span>
-          <span className="text-sm text-gray-600">•</span>
-          <span className="text-sm font-medium text-gray-900">{formatCurrency(totalAmount)}</span>
+        <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+          <span className="text-sm text-gray-600">{data.length} villages • {formatCurrency(totalAmount)}</span>
           <button
             onClick={() => exportToCSV(data, 'villages')}
-            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <Download className="h-4 w-4" />
             <span>{t('common.export')}</span>
@@ -1665,7 +1649,7 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
       </div>
 
       {/* Village Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.slice(0, 6).map((village) => (
           <div 
             key={village.id || village.code}
@@ -1695,7 +1679,7 @@ function VillagesTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort, 
       {/* Detailed Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[480px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.code')}</th>
@@ -1759,8 +1743,8 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1770,11 +1754,11 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-between sm:justify-end gap-2">
           <span className="text-sm text-gray-600">{data.length} items</span>
           <button
             onClick={() => exportToCSV(data, 'forecasts')}
-            className="flex items-center space-x-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
           >
             <Download className="h-4 w-4" />
             <span>{t('common.export')}</span>
@@ -1783,7 +1767,7 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
       </div>
 
       {/* Forecast Year Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
           <p className="text-sm text-gray-500">{t('label.actual2024')}</p>
           <p className="text-xl font-bold text-gray-900">{formatCurrency(total2024)}</p>
@@ -1831,18 +1815,7 @@ function ForecastsTab({ data, searchTerm, setSearchTerm, sortConfig, handleSort,
       {/* Detailed Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.code')}</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 text-sm">{t('table.itemName')}</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 text-sm">2024</th>
-                <th className="text-right py-3 px-4 font-semibold text-blue-900 text-sm">2025</th>
-                <th className="text-right py-3 px-4 font-semibold text-purple-900 text-sm">2026</th>
-                <th className="text-right py-3 px-4 font-semibold text-orange-900 text-sm">2027</th>
-                <th className="text-right py-3 px-4 font-semibold text-green-900 text-sm">2028</th>
-              </tr>
-            </thead>
+          <table className="w-full min-w-[600px]">
             <tbody className="divide-y divide-gray-100">
               {data.slice(0, 50).map((item, index) => (
                 <tr key={item.id || index} className="hover:bg-gray-50">
@@ -1946,8 +1919,8 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -1963,7 +1936,7 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
       </div>
 
       {/* Documents Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredDocs.map((doc) => {
           const Icon = getDocumentIcon(doc.document_type)
           return (
@@ -2028,7 +2001,7 @@ function DocumentsTab({ data, searchTerm, setSearchTerm, formatCurrency, selecte
           />
           
           {/* Panel */}
-          <div className="absolute right-0 top-0 h-full w-full md:w-[85%] lg:w-[75%] xl:w-[65%] bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-out">
+          <div className="absolute right-0 top-0 h-full w-full sm:w-[85%] lg:w-[75%] xl:w-[65%] bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-out">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
               <div className="flex items-center space-x-3">

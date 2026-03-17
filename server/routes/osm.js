@@ -121,7 +121,7 @@ router.post('/fetch', async (req, res) => {
     try {
         console.log('🗺️ Starting OSM data fetch from Overpass API...');
         
-        // Check if table exists
+        // Check if table exists before firing off background work
         const tableCheck = await pool.query(`
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -133,78 +133,54 @@ router.post('/fetch', async (req, res) => {
         if (!tableCheck.rows[0].exists) {
             throw new Error('Database table "osm_data" does not exist. Please restart the database container with fresh volumes to initialize the schema.');
         }
-        
-        // Fetch all data types
-        const results = await overpassClient.fetchAllData();
-        
-        let totalSaved = 0;
-        
-        // Process each data type
-        const dataTypes = ['schools', 'hospitals', 'libraries', 'busStops'];
-        const typeMap = {
-            schools: 'school',
-            hospitals: 'hospital',
-            libraries: 'library',
-            busStops: 'bus_stop'
-        };
-        
-        for (const dataType of dataTypes) {
-            const items = results[dataType] || [];
-            console.log(`   Processing ${items.length} ${dataType}...`);
-            
-            for (const item of items) {
-                try {
-                    await pool.query(`
-                        INSERT INTO osm_data (osm_id, osm_type, data_type, name, tags, lat, lng, geometry)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                        ON CONFLICT (osm_id, osm_type) DO UPDATE SET
-                            name = EXCLUDED.name,
-                            tags = EXCLUDED.tags,
-                            lat = EXCLUDED.lat,
-                            lng = EXCLUDED.lng,
-                            geometry = EXCLUDED.geometry,
-                            fetched_at = CURRENT_TIMESTAMP
-                    `, [
-                        item.osm_id,
-                        item.osm_type,
-                        typeMap[dataType],
-                        item.name,
-                        JSON.stringify(item.tags),
-                        item.lat,
-                        item.lng,
-                        item.geometry ? JSON.stringify(item.geometry) : null
-                    ]);
-                    totalSaved++;
-                } catch (err) {
-                    // Skip duplicates or errors
+
+        // Fire and forget — Overpass API takes 60-90 seconds, respond immediately
+        (async () => {
+            try {
+                const results = await overpassClient.fetchAllData();
+                const typeMap = { schools: 'school', hospitals: 'hospital', libraries: 'library', busStops: 'bus_stop' };
+                let totalSaved = 0;
+                for (const [dataType, dbType] of Object.entries(typeMap)) {
+                    for (const item of results[dataType] || []) {
+                        try {
+                            await pool.query(`
+                                INSERT INTO osm_data (osm_id, osm_type, data_type, name, tags, lat, lng, geometry)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                                ON CONFLICT (osm_id, osm_type) DO UPDATE SET
+                                    name = EXCLUDED.name, tags = EXCLUDED.tags,
+                                    lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+                                    geometry = EXCLUDED.geometry, fetched_at = CURRENT_TIMESTAMP
+                            `, [item.osm_id, item.osm_type, dbType, item.name, JSON.stringify(item.tags), item.lat, item.lng, item.geometry ? JSON.stringify(item.geometry) : null]);
+                            totalSaved++;
+                        } catch (_) {}
+                    }
                 }
+                console.log(`✅ OSM data fetch complete: ${totalSaved} records saved`);
+            } catch (err) {
+                console.error('❌ OSM background fetch failed:', err.message);
+            } finally {
+                pool.end();
             }
-        }
-        
-        console.log(`✅ OSM data fetch complete: ${totalSaved} records saved`);
+        })();
         
         res.json({
             success: true,
-            message: 'OSM data fetched successfully',
+            message: 'OSM data fetch started in background. Refresh the map in a few minutes.',
             data: {
-                schools: results.schools?.length || 0,
-                hospitals: results.hospitals?.length || 0,
-                libraries: results.libraries?.length || 0,
-                busStops: results.busStops?.length || 0,
-                totalSaved,
+                totalSaved: 0,
+                status: 'running_in_background',
                 fetchedAt: new Date().toISOString()
             }
         });
         
     } catch (error) {
         console.error('❌ OSM fetch failed:', error);
+        pool.end();
         res.status(500).json({
             success: false,
             error: 'Failed to fetch OSM data',
             message: error.message
         });
-    } finally {
-        pool.end();
     }
 });
 

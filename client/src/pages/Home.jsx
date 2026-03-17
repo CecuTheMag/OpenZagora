@@ -39,7 +39,9 @@ function Home() {
   })
   const [recentTenders, setRecentTenders] = useState([])
   const [recentProjects, setRecentProjects] = useState([])
-  const [upcomingMeetings, setUpcomingMeetings] = useState([])
+  const [recentVotes, setRecentVotes] = useState([])
+  const [news, setNews] = useState([])
+  const [events, setEvents] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -69,8 +71,9 @@ function Home() {
       // Fetch budget summary
       const budgetRes = await axios.get(`${API_URL}/budget/summary`)
       
-      // Fetch votes statistics
+      // Fetch votes statistics and recent votes
       const votesRes = await axios.get(`${API_URL}/votes/statistics`)
+      const recentVotesRes = await axios.get(`${API_URL}/votes?limit=3`)
 
       // Calculate EOP tender statistics
       const activeTenders = eopData.filter(t => t.status === 'active').length
@@ -110,28 +113,20 @@ function Home() {
         votes: {
           total: votesRes.data?.overall?.total_votes || 0,
           passed: votesRes.data?.overall?.passed_count || 0,
-          recent: votesRes.data?.recent?.length || 0
+          recent: votesRes.data?.overall?.total_votes || 0
         }
       })
 
       setRecentTenders(recentEopData)
       setRecentProjects(projectsRes.data?.data || [])
-      
-      // Mock upcoming meetings (would be real data)
-      setUpcomingMeetings([
-        {
-          id: 1,
-          title: 'Редовна сесия на Общински съвет',
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Next week
-          type: 'council'
-        },
-        {
-          id: 2,
-          title: 'Обществено обсъждане - бюджет 2024',
-          date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // In 2 weeks
-          type: 'public'
-        }
-      ])
+      setRecentVotes(recentVotesRes.data?.data || [])
+
+      // Fetch official municipality news & events
+      try {
+        const newsRes = await axios.get(`${API_URL}/news`)
+        setNews(newsRes.data?.news || [])
+        setEvents(newsRes.data?.events || [])
+      } catch (_) {}
       
       setLastUpdated(new Date())
       setError(null)
@@ -204,48 +199,48 @@ function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
           <div>
             <h1 className="text-4xl font-bold mb-4">
-              Община Стара Загора
+              {t('home.municipality')}
             </h1>
             <p className="text-xl text-primary-100 mb-6">
-              Прозрачност и отворено управление за всички граждани
+              {t('home.subtitle')}
             </p>
             <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                <span>{stats.municipality.population.toLocaleString('bg-BG')} жители</span>
+                <span>{stats.municipality.population.toLocaleString('bg-BG')} {t('home.residents')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
-                <span>{stats.municipality.area} км²</span>
+                <span>{stats.municipality.area} {t('home.area')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4" />
-                <span>{stats.municipality.districts} района</span>
+                <span>{stats.municipality.districts} {t('home.districts')}</span>
               </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
               <div className="text-2xl font-bold">{stats.tenders.active}</div>
-              <div className="text-sm text-primary-100">Активни обществени поръчки</div>
+              <div className="text-sm text-primary-100">{t('home.activeTenders')}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
               <div className="text-2xl font-bold">{formatCurrency(stats.budget.total)}</div>
-              <div className="text-sm text-primary-100">Общ бюджет 2024</div>
+              <div className="text-sm text-primary-100">{t('home.totalBudget2024')}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
               <div className="text-2xl font-bold">{stats.projects.active}</div>
-              <div className="text-sm text-primary-100">Текущи проекти</div>
+              <div className="text-sm text-primary-100">{t('home.currentProjects')}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
               <div className="text-2xl font-bold">{stats.votes.total}</div>
-              <div className="text-sm text-primary-100">Решения на ОС</div>
+              <div className="text-sm text-primary-100">{t('home.councilDecisions')}</div>
             </div>
           </div>
         </div>
         {lastUpdated && (
           <div className="mt-6 pt-4 border-t border-primary-500/30 text-sm text-primary-100">
-            Последно обновяване: {lastUpdated.toLocaleString('bg-BG')}
+            {t('home.lastUpdated')}: {lastUpdated.toLocaleString('bg-BG')}
           </div>
         )}
       </div>
@@ -256,20 +251,20 @@ function Home() {
         <Link to="/map" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Обществени поръчки</p>
+              <p className="text-sm font-medium text-gray-600">{t('home.publicTenders')}</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
                 {stats.tenders.total}
               </p>
               <div className="flex items-center mt-2 space-x-3 text-sm">
                 <span className="text-blue-600 font-medium">
-                  {stats.tenders.active} активни
+                  {stats.tenders.active} {t('home.activeTendersLabel')}
                 </span>
                 <span className="text-green-600">
-                  {stats.tenders.completed} завършени
+                  {stats.tenders.completed} {t('home.completedLabel')}
                 </span>
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Обща стойност: {formatCurrency(stats.tenders.totalValue)}
+                {t('home.totalValue')}: {formatCurrency(stats.tenders.totalValue)}
               </div>
             </div>
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -282,7 +277,7 @@ function Home() {
         <Link to="/budget" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Изпълнение на бюджета</p>
+              <p className="text-sm font-medium text-gray-600">{t('home.budgetExecution')}</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
                 {Math.round((stats.budget.spent / stats.budget.total) * 100)}%
               </p>
@@ -293,7 +288,7 @@ function Home() {
                 ></div>
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Изразходвано: {formatCurrency(stats.budget.spent)}
+                {t('home.spent')}: {formatCurrency(stats.budget.spent)}
               </div>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
@@ -306,20 +301,20 @@ function Home() {
         <Link to="/council" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-purple-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Решения на ОС</p>
+              <p className="text-sm font-medium text-gray-600">{t('home.councilDecisionsLabel')}</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">
                 {stats.votes.total}
               </p>
               <div className="flex items-center mt-2 space-x-3 text-sm">
                 <span className="text-green-600 font-medium">
-                  {stats.votes.passed} приети
+                  {stats.votes.passed} {t('home.passed')}
                 </span>
                 <span className="text-gray-500">
-                  {stats.votes.total - stats.votes.passed} отхвърлени
+                  {stats.votes.total - stats.votes.passed} {t('home.rejected')}
                 </span>
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Последни 30 дни: {stats.votes.recent} решения
+                {t('home.passRate')}: {Math.round((stats.votes.passed / (stats.votes.total || 1)) * 100)}%
               </div>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -334,12 +329,12 @@ function Home() {
             <div className="p-3 bg-orange-200 rounded-lg w-fit mx-auto mb-3">
               <Calendar className="h-8 w-8 text-orange-600" />
             </div>
-            <p className="text-sm font-medium text-orange-800 mb-2">Предстоящи събития</p>
+            <p className="text-sm font-medium text-orange-800 mb-2">{t('home.recentCouncilVotes')}</p>
             <p className="text-2xl font-bold text-orange-900">
-              {upcomingMeetings.length}
+              {stats.votes.total}
             </p>
             <p className="text-xs text-orange-700 mt-1">
-              Следващите 7 дни
+              {t('home.totalVotes')}
             </p>
           </div>
         </div>
@@ -352,19 +347,19 @@ function Home() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <FileText className="h-5 w-5 text-blue-600" />
-              Нови обществени поръчки
+              {t('home.newTenders')}
             </h2>
             <Link 
               to="/map" 
               className="flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm"
             >
-              Виж всички
+              {t('home.seeAllTenders')}
               <ArrowRight className="h-4 w-4 ml-1" />
             </Link>
           </div>
 
           {recentTenders.length === 0 ? (
-            <p className="text-gray-500 text-center py-6">Няма нови обществени поръчки</p>
+            <p className="text-gray-500 text-center py-6">{t('home.noTenders')}</p>
           ) : (
             <div className="space-y-4">
               {recentTenders.slice(0, 3).map((tender) => (
@@ -400,8 +395,8 @@ function Home() {
                       tender.status === 'completed' ? 'bg-green-100 text-green-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {tender.status === 'active' ? 'Активна' : 
-                       tender.status === 'completed' ? 'Завършена' : tender.status}
+                      {tender.status === 'active' ? t('status.active') : 
+                       tender.status === 'completed' ? t('status.completed') : tender.status}
                     </span>
                   </div>
                 </div>
@@ -410,54 +405,134 @@ function Home() {
           )}
         </div>
 
-        {/* Upcoming Meetings */}
+        {/* Recent Council Votes */}
         <div className="card">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <Calendar className="h-5 w-5 text-orange-600" />
-              Предстоящи събития
+              {t('home.recentCouncilVotes')}
             </h2>
+            <Link to="/council" className="flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm">
+              {t('home.seeAllVotes')}
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Link>
           </div>
 
-          <div className="space-y-4">
-            {upcomingMeetings.map((meeting) => (
-              <div 
-                key={meeting.id} 
-                className="p-4 bg-orange-50 border border-orange-200 rounded-lg"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      {meeting.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 flex items-center">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      {meeting.date.toLocaleDateString('bg-BG', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
+          {recentVotes.length === 0 ? (
+            <p className="text-gray-500 text-center py-6">{t('home.noVotes')}</p>
+          ) : (
+            <div className="space-y-4">
+              {recentVotes.map((vote) => (
+                <div key={vote.id} className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                        {vote.proposal_title}
+                      </h3>
+                      <p className="text-sm text-gray-600 flex items-center">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        {formatDate(vote.session_date)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {t('home.voteFor')}: {vote.vote_yes} | {t('home.voteAgainst')}: {vote.vote_no} | {t('home.voteAbstain')}: {vote.vote_abstain}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ml-3 ${
+                      vote.result === 'passed' ? 'bg-green-100 text-green-800' :
+                      vote.result === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {vote.result === 'passed' ? t('home.votePassed') :
+                       vote.result === 'rejected' ? t('home.voteRejected') : t('home.votePostponed')}
+                    </span>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    meeting.type === 'council' ? 'bg-purple-100 text-purple-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {meeting.type === 'council' ? 'Общински съвет' : 'Обществено обсъждане'}
-                  </span>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* News & Events from starazagora.bg */}
+      {(news.length > 0 || events.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* News */}
+          {news.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary-600" />
+                  {t('home.newsFromMunicipality')}
+                </h2>
+                <a href="https://www.starazagora.bg/bg/novini" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center text-primary-600 hover:text-primary-700 font-medium text-sm">
+                  {t('home.seeAllNews')} <ArrowRight className="h-4 w-4 ml-1" />
+                </a>
+              </div>
+              <div className="space-y-4">
+                {news.map((item, i) => (
+                  <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
+                    className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+                    {item.image && (
+                      <img src={item.image} alt="" className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-primary-600">
+                        {item.title}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(item.pubDate).toLocaleDateString('bg-BG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Events */}
+          {events.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-orange-600" />
+                  {t('home.eventsInCity')}
+                </h2>
+                <a href="https://www.starazagora.bg/bg/sabitiya" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm">
+                  {t('home.seeAllEvents')} <ArrowRight className="h-4 w-4 ml-1" />
+                </a>
+              </div>
+              <div className="space-y-4">
+                {events.map((item, i) => (
+                  <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
+                    className="flex gap-3 p-3 rounded-lg hover:bg-orange-50 transition-colors group">
+                    {item.image && (
+                      <img src={item.image} alt="" className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-orange-600">
+                        {item.title}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(item.pubDate).toLocaleDateString('bg-BG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Citizen Services */}
       <div className="card mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
           <Users className="h-6 w-6 text-primary-600" />
-          Услуги за граждани
+          {t('home.citizenServices')}
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -466,10 +541,10 @@ function Home() {
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
               <Building className="h-6 w-6 text-blue-600" />
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Контакти</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">{t('home.contacts')}</h3>
             <div className="text-sm text-gray-600 space-y-1">
-              <p>тел: 042 699 200</p>
-              <p>факс: 042 699 209</p>
+              <p>{t('home.phone')}: 042 699 200</p>
+              <p>{t('home.fax')}: 042 699 209</p>
               <p>info@starazagora.bg</p>
             </div>
           </div>
@@ -479,12 +554,12 @@ function Home() {
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
               <Calendar className="h-6 w-6 text-green-600" />
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Работно време</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">{t('home.workingHours')}</h3>
             <div className="text-sm text-gray-600 space-y-1">
-              <p>Пон-Чет: 08:30-17:30</p>
-              <p>Петък: 08:30-16:30</p>
-              <p>Граждански приемен:</p>
-              <p>Вторник: 14:00-17:00</p>
+              <p>{t('home.workingHoursMonThu')}</p>
+              <p>{t('home.workingHoursFri')}</p>
+              <p>{t('home.citizenReception')}</p>
+              <p>{t('home.citizenReceptionTime')}</p>
             </div>
           </div>
 
@@ -493,12 +568,12 @@ function Home() {
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
               <FileText className="h-6 w-6 text-purple-600" />
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Онлайн услуги</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">{t('home.onlineServices')}</h3>
             <div className="text-sm text-gray-600 space-y-1">
-              <p>Електронни заявления</p>
-              <p>Справки за такси</p>
-              <p>Документи онлайн</p>
-              <a href="#" className="text-purple-600 hover:text-purple-800 font-medium">Достъп →</a>
+              <p>{t('home.onlineApplications')}</p>
+              <p>{t('home.feesLookup')}</p>
+              <p>{t('home.onlineDocs')}</p>
+              <a href="#" className="text-purple-600 hover:text-purple-800 font-medium">{t('home.access')}</a>
             </div>
           </div>
 
@@ -507,12 +582,12 @@ function Home() {
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mx-auto mb-3">
               <Users className="h-6 w-6 text-red-600" />
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Спешни контакти</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">{t('home.emergencyContacts')}</h3>
             <div className="text-sm text-gray-600 space-y-1">
-              <p>Авария: 042 699 299</p>
-              <p>Дежурен инженер</p>
-              <p>24/7 диспечер</p>
-              <p className="text-red-600 font-medium">Само спешни случаи</p>
+              <p>042 699 299</p>
+              <p>{t('home.dispatcher')}</p>
+              <p>{t('home.dispatcher247')}</p>
+              <p className="text-red-600 font-medium">{t('home.emergencyOnly')}</p>
             </div>
           </div>
         </div>
@@ -522,7 +597,7 @@ function Home() {
       <div className="card">
         <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
           <CheckCircle className="h-6 w-6 text-green-600" />
-          Прозрачност и отчетност
+          {t('home.transparency')}
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -532,28 +607,28 @@ function Home() {
               <div className="p-2 bg-blue-200 rounded-lg">
                 <FileText className="h-6 w-6 text-blue-700" />
               </div>
-              <h3 className="text-lg font-semibold text-blue-900">Публични документи</h3>
+              <h3 className="text-lg font-semibold text-blue-900">{t('home.publicDocuments')}</h3>
             </div>
             <ul className="space-y-2 text-sm text-blue-800">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                Протоколи от заседания
+                {t('home.sessionMinutes')}
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                Общински наредби
+                {t('home.municipalOrdinances')}
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                Стратегически документи
+                {t('home.strategicDocs')}
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                Отчети за дейността
+                {t('home.activityReports')}
               </li>
             </ul>
             <button className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-              Достъп до документи
+              {t('home.accessDocuments')}
             </button>
           </div>
 
@@ -563,15 +638,15 @@ function Home() {
               <div className="p-2 bg-green-200 rounded-lg">
                 <DollarSign className="h-6 w-6 text-green-700" />
               </div>
-              <h3 className="text-lg font-semibold text-green-900">Бюджетна прозрачност</h3>
+              <h3 className="text-lg font-semibold text-green-900">{t('home.budgetTransparencyCard')}</h3>
             </div>
             <div className="space-y-3 text-sm text-green-800">
               <div className="flex justify-between items-center">
-                <span>Общ бюджет 2024:</span>
+                <span>{t('home.totalBudgetLabel')}</span>
                 <span className="font-semibold">{formatCurrency(stats.budget.total)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span>Изпълнение:</span>
+                <span>{t('home.executionLabel')}</span>
                 <span className="font-semibold">{Math.round((stats.budget.spent / stats.budget.total) * 100)}%</span>
               </div>
               <div className="w-full bg-green-200 rounded-full h-2">
@@ -582,7 +657,7 @@ function Home() {
               </div>
             </div>
             <div className="mt-4 flex items-center text-green-700 font-medium text-sm">
-              Подробна анализа
+              {t('home.detailedAnalysis')}
               <ArrowRight className="h-4 w-4 ml-1" />
             </div>
           </Link>
@@ -593,28 +668,28 @@ function Home() {
               <div className="p-2 bg-purple-200 rounded-lg">
                 <Users className="h-6 w-6 text-purple-700" />
               </div>
-              <h3 className="text-lg font-semibold text-purple-900">Обществено участие</h3>
+              <h3 className="text-lg font-semibold text-purple-900">{t('home.publicParticipation')}</h3>
             </div>
             <ul className="space-y-2 text-sm text-purple-800">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-purple-600 rounded-full"></div>
-                Обществени обсъждания
+                {t('home.publicConsultations')}
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-purple-600 rounded-full"></div>
-                Консултации с граждани
+                {t('home.citizenConsultations')}
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-purple-600 rounded-full"></div>
-                Предложения и сигнали
+                {t('home.proposalsSignals')}
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-purple-600 rounded-full"></div>
-                Онлайн анкети
+                {t('home.onlineSurveys')}
               </li>
             </ul>
             <button className="mt-4 w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium">
-              Подай предложение
+              {t('home.submitProposal')}
             </button>
           </div>
         </div>
@@ -625,60 +700,60 @@ function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Municipality Info */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Община Стара Загора</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('home.footerMunicipality')}</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <p className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
-                ул. "Цар Симеон Велики" 107, 6000 Стара Загора
+                {t('home.footerAddress')}
               </p>
               <p className="flex items-center gap-2">
                 <Building className="h-4 w-4" />
-                БУЛСТАТ: 000695324
+                {t('home.footerBulstat')}
               </p>
               <p className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Общински код: SZ
+                {t('home.footerCode')}
               </p>
             </div>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Бързи връзки</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('home.quickLinks')}</h3>
             <div className="space-y-2 text-sm">
               <Link to="/map" className="block text-gray-600 hover:text-primary-600 transition-colors">
-                Карта на проектите
+                {t('home.projectMap')}
               </Link>
               <Link to="/budget" className="block text-gray-600 hover:text-primary-600 transition-colors">
-                Общински бюджет
+                {t('home.municipalBudget')}
               </Link>
               <Link to="/council" className="block text-gray-600 hover:text-primary-600 transition-colors">
-                Решения на ОС
+                {t('home.councilDecisionsLink')}
               </Link>
               <a href="https://starazagora.bg" target="_blank" rel="noopener noreferrer" className="block text-gray-600 hover:text-primary-600 transition-colors">
-                Официален сайт
+                {t('home.officialSite')}
               </a>
             </div>
           </div>
 
           {/* Data Sources */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Източници на данни</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('home.dataSources')}</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <div className="flex items-center justify-between">
                 <span>ЦАИС ЕОП</span>
-                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">Активно</span>
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">{t('map.gisActive')}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>OpenStreetMap</span>
-                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">Активно</span>
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">{t('map.gisActive')}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Общински данни</span>
-                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">Активно</span>
+                <span>{t('home.municipalData')}</span>
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">{t('map.gisActive')}</span>
               </div>
               <p className="text-xs text-gray-500 mt-3">
-                Данните се обновяват автоматично всеки час
+                {t('home.dataAutoUpdate')}
               </p>
             </div>
           </div>
@@ -686,12 +761,8 @@ function Home() {
 
         {/* Copyright */}
         <div className="mt-8 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
-          <p>
-            © 2024 Община Стара Загора. Всички права запазени.
-          </p>
-          <p className="mt-1">
-            Платформа за открито управление и прозрачност
-          </p>
+          <p>{t('home.copyright')}</p>
+          <p className="mt-1">{t('home.platformDesc')}</p>
         </div>
       </div>
     </div>

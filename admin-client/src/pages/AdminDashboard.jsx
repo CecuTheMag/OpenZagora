@@ -207,7 +207,7 @@ const AdminDashboard = () => {
       }
       
       if (osm?.success) {
-        results.push(`OSM: ${osm.data.totalSaved} objects saved`);
+        results.push(`OSM: fetching in background`);
       } else {
         results.push('OSM: failed');
       }
