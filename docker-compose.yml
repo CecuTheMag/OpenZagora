@@ -146,8 +146,9 @@ services:
     container_name: open-zagora-admin-client
     restart: unless-stopped
     environment:
-      VITE_API_URL: http://localhost:5001
+      VITE_API_URL: /api
     volumes:
+      - ./admin-client/.env:/app/.env
       - ./admin-client/index.html:/app/index.html
       - ./admin-client/vite.config.js:/app/vite.config.js
       - ./admin-client/package.json:/app/package.json
