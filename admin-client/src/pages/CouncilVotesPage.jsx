@@ -68,7 +68,7 @@ const CouncilVotesPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/api/admin/database/council_votes');
+      const response = await api.get('/admin/database/council_votes');
       if (response.data.success) {
         setVotes(response.data.data.records || []);
       } else {
@@ -84,7 +84,7 @@ const CouncilVotesPage = () => {
 
   const fetchAvailableYears = async () => {
     try {
-      const response = await api.get('/api/admin/database/council_votes');
+      const response = await api.get('/admin/database/council_votes');
       if (response.data.success) {
         const records = response.data.data.records || [];
         const years = new Set(
@@ -228,7 +228,7 @@ const CouncilVotesPage = () => {
       if (editingVote) {
         response = await api.put(`/api/admin/database/council_votes/${editingVote.id}`, formData);
       } else {
-        response = await api.post('/api/admin/database/council_votes', formData);
+        response = await api.post('/admin/database/council_votes', formData);
       }
 
       if (response.data.success) {

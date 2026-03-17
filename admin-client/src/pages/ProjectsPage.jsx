@@ -135,7 +135,7 @@ const ProjectsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/api/admin/database/projects');
+      const response = await api.get('/admin/database/projects');
       if (response.data.success) {
         setProjects(response.data.data.records || []);
       } else {
@@ -343,7 +343,7 @@ const ProjectsPage = () => {
       if (editingProject) {
         response = await api.put(`/api/admin/database/projects/${editingProject.id}`, submitData);
       } else {
-        response = await api.post('/api/admin/database/projects', submitData);
+        response = await api.post('/admin/database/projects', submitData);
       }
 
       if (response.data.success) {

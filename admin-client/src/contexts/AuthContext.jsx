@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         try {
           // Verify token validity
-          const response = await api.get('/api/auth/verify');
+          const response = await api.get('/auth/verify');
           
           if (response.data.success) {
             const userData = localStorage.getItem('adminUser');
@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(true);
 
     try {
-      const response = await api.post('/api/auth/login', {
+      const response = await api.post('/auth/login', {
         username,
         password
       });
@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async () => {
     try {
       // Call logout endpoint (optional, for audit logging)
-      await api.post('/api/auth/logout');
+      await api.post('/auth/logout');
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
@@ -161,7 +161,7 @@ export const AuthProvider = ({ children }) => {
   // Get fresh user data
   const refreshUser = useCallback(async () => {
     try {
-      const response = await api.get('/api/auth/me');
+      const response = await api.get('/auth/me');
       
       if (response.data.success) {
         const userData = response.data.data.user;

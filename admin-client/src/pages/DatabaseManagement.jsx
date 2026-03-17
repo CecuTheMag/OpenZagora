@@ -63,7 +63,7 @@ const DatabaseManagement = () => {
   // Fetch available tables
   const fetchTables = useCallback(async () => {
     try {
-      const response = await api.get('/api/admin/database/tables');
+      const response = await api.get('/admin/database/tables');
       if (response.data.success) {
         setTables(response.data.data);
       }
@@ -122,7 +122,7 @@ const DatabaseManagement = () => {
   const fetchStats = useCallback(async () => {
     setIsLoadingStats(true);
     try {
-      const response = await api.get('/api/admin/database/stats/overview');
+      const response = await api.get('/admin/database/stats/overview');
       if (response.data.success) {
         setStats(response.data.data);
       }
@@ -312,7 +312,7 @@ const DatabaseManagement = () => {
     
     setIsClearing(true);
     try {
-      const response = await api.post('/api/admin/database/clear', {
+      const response = await api.post('/admin/database/clear', {
         confirm: 'CLEAR_ALL_DATA'
       });
       

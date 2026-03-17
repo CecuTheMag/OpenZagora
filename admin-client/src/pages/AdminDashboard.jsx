@@ -125,7 +125,7 @@ const AdminDashboard = () => {
         formData.append('description', customDescription.trim());
       }
 
-      const response = await api.post('/api/admin/upload', formData, {
+      const response = await api.post('/admin/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -162,7 +162,7 @@ const AdminDashboard = () => {
   const fetchUploadHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const response = await api.get('/api/admin/upload/history');
+      const response = await api.get('/admin/upload/history');
       if (response.data.success) {
         setUploadHistory(response.data.data.uploads || []);
       }
@@ -275,7 +275,7 @@ const AdminDashboard = () => {
 
     try {
       // Use the new budget import endpoint that runs the shell script
-      const response = await api.post('/api/admin/budget/import', {
+      const response = await api.post('/admin/budget/import', {
         folderPath: folderPath.trim(),
         year: year
       });
