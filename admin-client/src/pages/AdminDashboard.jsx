@@ -189,7 +189,7 @@ const AdminDashboard = () => {
 
     try {
       // Call the main server (port 5000) for map data operations
-      const mainServerAPI = 'http://localhost:5000/api';
+      const mainServerAPI = '/api';
       
       const [eopRes, osmRes] = await Promise.allSettled([
         fetch(`${mainServerAPI}/eop/fetch-and-import`, { method: 'POST' }),
@@ -234,7 +234,7 @@ const AdminDashboard = () => {
 
     try {
       // Call the main server (port 5000) for geocoding
-      const mainServerAPI = 'http://localhost:5000/api';
+      const mainServerAPI = '/api';
       
       await Promise.all([
         fetch(`${mainServerAPI}/eop/geocode`, { 

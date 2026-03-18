@@ -8,6 +8,16 @@ export default defineConfig({
     port: 5174, // Different from public client (5173)
     host: '0.0.0.0',
     proxy: {
+      '/api/eop': {
+        target: 'http://server:5000',
+        changeOrigin: true,
+        secure: false
+      },
+      '/api/osm': {
+        target: 'http://server:5000',
+        changeOrigin: true,
+        secure: false
+      },
       '/api': {
         target: 'http://admin-server:5001',
         changeOrigin: true,
