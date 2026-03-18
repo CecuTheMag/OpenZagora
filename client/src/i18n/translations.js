@@ -302,7 +302,25 @@ export const translations = {
     'home.dataSources': 'Data Sources',
     'home.dataAutoUpdate': 'Data is automatically updated every hour',
     'home.copyright': '© 2024 Municipality of Stara Zagora. All rights reserved.',
-    'home.platformDesc': 'Open governance and transparency platform'
+    'home.platformDesc': 'Open governance and transparency platform',
+
+    // Tender Details
+    'tender.backToMap': 'Back to Map',
+    'tender.notFound': 'Tender not found',
+    'tender.loadError': 'Failed to load tender details',
+    'tender.budget': 'Budget',
+    'tender.information': 'Tender Information',
+    'tender.eopReference': 'EOP Reference',
+    'tender.contractor': 'Contractor',
+    'tender.location': 'Location',
+    'tender.description': 'Project Description',
+    'tender.timeline': 'Timeline',
+    'tender.published': 'Published',
+    'tender.deadline': 'Deadline',
+    'tender.lastUpdated': 'Last Updated',
+    'tender.coordinates': 'Coordinates',
+    'tender.viewOnMap': 'View on Map',
+    'tender.viewSource': 'View Original Source'
   },
   bg: {
     // Navigation
@@ -607,7 +625,25 @@ export const translations = {
     'home.dataSources': 'Източници на данни',
     'home.dataAutoUpdate': 'Данните се обновяват автоматично всеки час',
     'home.copyright': '© 2024 Община Стара Загора. Всички права запазени.',
-    'home.platformDesc': 'Платформа за открито управление и прозрачност'
+    'home.platformDesc': 'Платформа за открито управление и прозрачност',
+
+    // Tender Details
+    'tender.backToMap': 'Назад към картата',
+    'tender.notFound': 'Поръчката не е намерена',
+    'tender.loadError': 'Грешка при зареждане на детайлите',
+    'tender.budget': 'Бюджет',
+    'tender.information': 'Информация за поръчката',
+    'tender.eopReference': 'EOP Референция',
+    'tender.contractor': 'Изпълнител',
+    'tender.location': 'Местоположение',
+    'tender.description': 'Описание на проекта',
+    'tender.timeline': 'Времева линия',
+    'tender.published': 'Публикувано',
+    'tender.deadline': 'Краен срок',
+    'tender.lastUpdated': 'Последно обновено',
+    'tender.coordinates': 'Координати',
+    'tender.viewOnMap': 'Виж на картата',
+    'tender.viewSource': 'Виж оригиналния източник'
   }
 }
 

@@ -9,14 +9,14 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import axios from 'axios'
 import {
-  ArrowLeft, MapPin, Building, DollarSign, Calendar, 
-  ExternalLink, FileText, User, Clock, AlertCircle
+  ArrowLeft, MapPin, DollarSign, Calendar,
+  ExternalLink, FileText, AlertCircle
 } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function TenderDetailsPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { id } = useParams()
   const [tender, setTender] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -27,8 +27,6 @@ function TenderDetailsPage() {
       try {
         setLoading(true)
         setError(null)
-        
-        // Try to get from EOP data first
         const response = await axios.get(`${API_URL}/eop/${id}`)
         if (response.data?.success) {
           setTender(response.data.data)
@@ -37,15 +35,13 @@ function TenderDetailsPage() {
         }
       } catch (err) {
         console.error('Error fetching tender:', err)
-        setError('Failed to load tender details')
+        setError(t('tender.loadError'))
       } finally {
         setLoading(false)
       }
     }
 
-    if (id) {
-      fetchTender()
-    }
+    if (id) fetchTender()
   }, [id])
 
   if (loading) {
@@ -60,13 +56,13 @@ function TenderDetailsPage() {
   if (error || !tender) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4">
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center max-w-md w-full">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 sm:p-8 text-center max-w-md w-full">
           <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-          <p className="text-red-700 text-lg font-medium mb-4">
-            {error || 'Tender not found'}
+          <p className="text-red-700 text-base sm:text-lg font-medium mb-4">
+            {error || t('tender.notFound')}
           </p>
           <Link to="/map" className="btn-primary">
-            Back to Map
+            {t('tender.backToMap')}
           </Link>
         </div>
       </div>
@@ -80,99 +76,98 @@ function TenderDetailsPage() {
     cancelled: 'bg-red-100 text-red-800 border-red-200',
   }
 
+  const locale = language === 'bg' ? 'bg-BG' : 'en-GB'
+  const formatDate = (d) => new Date(d).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Link 
-          to="/map" 
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      {/* Back link */}
+      <div className="flex items-center gap-4 mb-4 sm:mb-6">
+        <Link
+          to="/map"
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
         >
-          <ArrowLeft className="h-5 w-5" />
-          Back to Map
+          <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+          {t('tender.backToMap')}
         </Link>
       </div>
 
-      {/* Main Content */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-primary-50 to-blue-50 px-6 py-8 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 leading-tight">
-                {tender.title}
-              </h1>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-primary-50 to-blue-50 px-4 sm:px-6 py-5 sm:py-8 border-b border-gray-200">
+          <div className="flex flex-col gap-4">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 leading-tight">
+              {tender.title}
+            </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               {tender.status && (
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${
+                <span className={`self-start inline-block px-3 py-1 rounded-full text-sm font-medium border ${
                   statusColors[tender.status] || 'bg-gray-100 text-gray-700 border-gray-200'
                 }`}>
                   {t(`status.${tender.status}`)}
                 </span>
               )}
-            </div>
-            {tender.budget && (
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-                <div className="flex items-center gap-2 text-green-600 mb-1">
-                  <DollarSign className="h-5 w-5" />
-                  <span className="text-sm font-medium">Budget</span>
+              {tender.budget && (
+                <div className="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-gray-200 self-start sm:self-auto">
+                  <div className="flex items-center gap-2 text-green-600 mb-1">
+                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="text-xs sm:text-sm font-medium">{t('tender.budget')}</span>
+                  </div>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">
+                    {formatCurrency(tender.budget)}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(tender.budget)}
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Content Sections */}
-        <div className="p-6 space-y-8">
-          {/* Key Information Grid */}
+        {/* Content */}
+        <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Basic Info */}
+            {/* Main info */}
             <div className="lg:col-span-2 space-y-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                  <FileText className="h-5 w-5 text-primary-600" />
-                  Tender Information
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3 sm:mb-4">
+                  <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
+                  {t('tender.information')}
                 </h2>
-                
-                <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+
+                <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-1">
                   {tender.eop_id && (
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
-                      <span className="text-sm font-medium text-gray-600">EOP Reference</span>
-                      <span className="text-gray-900 font-mono text-sm">{tender.eop_id}</span>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-xs sm:text-sm font-medium text-gray-600 shrink-0 mr-3">{t('tender.eopReference')}</span>
+                      <span className="text-gray-900 font-mono text-xs sm:text-sm text-right truncate">{tender.eop_id}</span>
                     </div>
                   )}
-
                   {tender.contractor && (
-                    <div className="flex justify-between items-start py-2 border-b border-gray-200 last:border-b-0">
-                      <span className="text-sm font-medium text-gray-600">Contractor</span>
-                      <span className="text-gray-900 text-right max-w-xs">{tender.contractor}</span>
+                    <div className="flex justify-between items-start py-2 border-b border-gray-200">
+                      <span className="text-xs sm:text-sm font-medium text-gray-600 shrink-0 mr-3">{t('tender.contractor')}</span>
+                      <span className="text-gray-900 text-xs sm:text-sm text-right">{tender.contractor}</span>
                     </div>
                   )}
-
                   {tender.address && (
-                    <div className="flex justify-between items-start py-2 border-b border-gray-200 last:border-b-0">
-                      <span className="text-sm font-medium text-gray-600">Location</span>
-                      <span className="text-gray-900 text-right max-w-xs">{tender.address}</span>
+                    <div className="flex justify-between items-start py-2 border-b border-gray-200">
+                      <span className="text-xs sm:text-sm font-medium text-gray-600 shrink-0 mr-3">{t('tender.location')}</span>
+                      <span className="text-gray-900 text-xs sm:text-sm text-right">{tender.address}</span>
                     </div>
                   )}
-
                   {tender.budget && (
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
-                      <span className="text-sm font-medium text-gray-600">Budget</span>
-                      <span className="text-gray-900 font-semibold">{formatCurrency(tender.budget)}</span>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-xs sm:text-sm font-medium text-gray-600 shrink-0 mr-3">{t('tender.budget')}</span>
+                      <span className="text-gray-900 text-xs sm:text-sm font-semibold">{formatCurrency(tender.budget)}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Description */}
               {tender.description && (
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Project Description</h2>
-                  <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
+                    {t('tender.description')}
+                  </h2>
+                  <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+                    <p className="text-gray-700 text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
                       {tender.description}
                     </p>
                   </div>
@@ -184,61 +179,40 @@ function TenderDetailsPage() {
             <div className="space-y-6">
               {/* Timeline */}
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                  <Calendar className="h-5 w-5 text-primary-600" />
-                  Timeline
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3 sm:mb-4">
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
+                  {t('tender.timeline')}
                 </h2>
-                
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   {tender.publication_date && (
-                    <div className="p-4 border-b border-gray-100">
+                    <div className="p-3 sm:p-4 border-b border-gray-100">
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">Published</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(tender.publication_date).toLocaleDateString('bg-BG', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </p>
+                          <p className="text-xs sm:text-sm font-medium text-gray-900">{t('tender.published')}</p>
+                          <p className="text-xs text-gray-500">{formatDate(tender.publication_date)}</p>
                         </div>
                       </div>
                     </div>
                   )}
-
                   {tender.end_date && (
-                    <div className="p-4 border-b border-gray-100">
+                    <div className="p-3 sm:p-4 border-b border-gray-100">
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                        <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">Deadline</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(tender.end_date).toLocaleDateString('bg-BG', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </p>
+                          <p className="text-xs sm:text-sm font-medium text-gray-900">{t('tender.deadline')}</p>
+                          <p className="text-xs text-gray-500">{formatDate(tender.end_date)}</p>
                         </div>
                       </div>
                     </div>
                   )}
-
                   {tender.updated_at && (
-                    <div className="p-4">
+                    <div className="p-3 sm:p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-gray-400" />
+                        <div className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">Last Updated</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(tender.updated_at).toLocaleDateString('bg-BG', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </p>
+                          <p className="text-xs sm:text-sm font-medium text-gray-900">{t('tender.lastUpdated')}</p>
+                          <p className="text-xs text-gray-500">{formatDate(tender.updated_at)}</p>
                         </div>
                       </div>
                     </div>
@@ -247,27 +221,27 @@ function TenderDetailsPage() {
               </div>
 
               {/* Location */}
-              {(tender.lat && tender.lng) && (
+              {tender.lat && tender.lng && (
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-primary-600" />
-                    Location
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
+                    {t('tender.location')}
                   </h2>
-                  <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm">
                     <div className="space-y-3">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Coordinates</p>
-                        <p className="text-sm text-gray-900 font-mono">
-                          {parseFloat(tender.lat).toFixed(6)}<br/>
+                        <p className="text-xs text-gray-500 mb-1">{t('tender.coordinates')}</p>
+                        <p className="text-xs sm:text-sm text-gray-900 font-mono">
+                          {parseFloat(tender.lat).toFixed(6)}<br />
                           {parseFloat(tender.lng).toFixed(6)}
                         </p>
                       </div>
-                      <Link 
+                      <Link
                         to={`/map?lat=${tender.lat}&lng=${tender.lng}&zoom=16`}
-                        className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-800 text-sm font-medium w-full justify-center py-2 px-3 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                        className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-800 text-xs sm:text-sm font-medium w-full justify-center py-2 px-3 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
                       >
-                        <MapPin className="h-4 w-4" />
-                        View on Map
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+                        {t('tender.viewOnMap')}
                       </Link>
                     </div>
                   </div>
@@ -276,26 +250,25 @@ function TenderDetailsPage() {
             </div>
           </div>
 
-          {/* External Links */}
+          {/* Footer actions */}
           <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
             {tender.source_url && (
-              <a 
-                href={tender.source_url} 
-                target="_blank" 
+              <a
+                href={tender.source_url}
+                target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
               >
                 <ExternalLink className="h-4 w-4" />
-                View Original Source
+                {t('tender.viewSource')}
               </a>
             )}
-            
-            <Link 
+            <Link
               to="/map"
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors"
             >
               <MapPin className="h-4 w-4" />
-              Back to Map
+              {t('tender.backToMap')}
             </Link>
           </div>
         </div>

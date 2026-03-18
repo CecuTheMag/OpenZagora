@@ -186,166 +186,135 @@ function Home() {
     <>
     <div className="space-y-8">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl text-white p-8 mb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+      <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl text-white p-5 sm:p-8 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-center">
           <div>
-            <h1 className="text-4xl font-bold mb-4">
+            <h1 className="text-2xl sm:text-4xl font-bold mb-3 sm:mb-4">
               {t('home.municipality')}
             </h1>
-            <p className="text-xl text-primary-100 mb-6">
+            <p className="text-base sm:text-xl text-primary-100 mb-4 sm:mb-6">
               {t('home.subtitle')}
             </p>
-            <div className="flex flex-wrap gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
+            <div className="flex flex-wrap gap-3 text-xs sm:text-sm">
+              <div className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
                 <span>{stats.municipality.population.toLocaleString('bg-BG')} {t('home.residents')}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
+              <div className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
                 <span>{stats.municipality.area} {t('home.area')}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Building className="h-4 w-4" />
+              <div className="flex items-center gap-1.5">
+                <Building className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
                 <span>{stats.municipality.districts} {t('home.districts')}</span>
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold">{stats.tenders.active}</div>
-              <div className="text-sm text-primary-100">{t('home.activeTenders')}</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
+              <div className="text-xl sm:text-2xl font-bold truncate">{stats.tenders.active}</div>
+              <div className="text-xs sm:text-sm text-primary-100 mt-0.5">{t('home.activeTenders')}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold">{formatCurrency(stats.budget.total)}</div>
-              <div className="text-sm text-primary-100">{t('home.totalBudget2024')}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
+              <div className="text-sm sm:text-xl font-bold truncate">{formatCurrency(stats.budget.total)}</div>
+              <div className="text-xs sm:text-sm text-primary-100 mt-0.5">{t('home.totalBudget2024')}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold">{stats.projects.active}</div>
-              <div className="text-sm text-primary-100">{t('home.currentProjects')}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
+              <div className="text-xl sm:text-2xl font-bold truncate">{stats.projects.active}</div>
+              <div className="text-xs sm:text-sm text-primary-100 mt-0.5">{t('home.currentProjects')}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold">{stats.votes.total}</div>
-              <div className="text-sm text-primary-100">{t('home.councilDecisions')}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 text-center">
+              <div className="text-xl sm:text-2xl font-bold truncate">{stats.votes.total}</div>
+              <div className="text-xs sm:text-sm text-primary-100 mt-0.5">{t('home.councilDecisions')}</div>
             </div>
           </div>
         </div>
         {lastUpdated && (
-          <div className="mt-6 pt-4 border-t border-primary-500/30 text-sm text-primary-100">
+          <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-primary-500/30 text-xs sm:text-sm text-primary-100">
             {t('home.lastUpdated')}: {lastUpdated.toLocaleString('bg-BG')}
           </div>
         )}
       </div>
 
       {/* Key Metrics Dashboard */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
         {/* Public Tenders */}
-        <Link to="/map" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">{t('home.publicTenders')}</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
-                {stats.tenders.total}
-              </p>
-              <div className="flex items-center mt-2 space-x-3 text-sm">
-                <span className="text-blue-600 font-medium">
-                  {stats.tenders.active} {t('home.activeTendersLabel')}
-                </span>
-                <span className="text-green-600">
-                  {stats.tenders.completed} {t('home.completedLabel')}
-                </span>
+        <Link to="/map" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-primary-500 !p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{t('home.publicTenders')}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{stats.tenders.total}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center mt-1 sm:mt-2 gap-0.5 sm:gap-3 text-xs sm:text-sm">
+                <span className="text-primary-600 font-medium whitespace-nowrap">{stats.tenders.active} {t('home.activeTendersLabel')}</span>
+                <span className="text-green-600 whitespace-nowrap">{stats.tenders.completed} {t('home.completedLabel')}</span>
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {t('home.totalValue')}: {formatCurrency(stats.tenders.totalValue)}
-              </div>
+              <div className="text-xs text-gray-500 mt-1 truncate">{t('home.totalValue')}: {formatCurrency(stats.tenders.totalValue)}</div>
             </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <FileText className="h-8 w-8 text-blue-600" />
+            <div className="p-2 sm:p-3 bg-primary-100 rounded-lg shrink-0">
+              <FileText className="h-5 w-5 sm:h-8 sm:w-8 text-primary-600" />
             </div>
           </div>
         </Link>
 
         {/* Budget Execution */}
-        <Link to="/budget" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">{t('home.budgetExecution')}</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
-                {Math.round((stats.budget.spent / stats.budget.total) * 100)}%
-              </p>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div 
-                  className="bg-green-500 h-2 rounded-full transition-all duration-500" 
-                  style={{ width: `${(stats.budget.spent / stats.budget.total) * 100}%` }}
-                ></div>
+        <Link to="/budget" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500 !p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{t('home.budgetExecution')}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{Math.round((stats.budget.spent / stats.budget.total) * 100)}%</p>
+              <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2 mt-1 sm:mt-2">
+                <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${(stats.budget.spent / stats.budget.total) * 100}%` }}></div>
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {t('home.spent')}: {formatCurrency(stats.budget.spent)}
-              </div>
+              <div className="text-xs text-gray-500 mt-1 truncate">{t('home.spent')}: {formatCurrency(stats.budget.spent)}</div>
             </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <TrendingUp className="h-8 w-8 text-green-600" />
+            <div className="p-2 sm:p-3 bg-green-100 rounded-lg shrink-0">
+              <TrendingUp className="h-5 w-5 sm:h-8 sm:w-8 text-green-600" />
             </div>
           </div>
         </Link>
 
         {/* Council Decisions */}
-        <Link to="/council" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-purple-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">{t('home.councilDecisionsLabel')}</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
-                {stats.votes.total}
-              </p>
-              <div className="flex items-center mt-2 space-x-3 text-sm">
-                <span className="text-green-600 font-medium">
-                  {stats.votes.passed} {t('home.passed')}
-                </span>
-                <span className="text-gray-500">
-                  {stats.votes.total - stats.votes.passed} {t('home.rejected')}
-                </span>
+        <Link to="/council" className="card hover:shadow-lg transition-all duration-200 border-l-4 border-l-purple-500 !p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{t('home.councilDecisionsLabel')}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{stats.votes.total}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center mt-1 sm:mt-2 gap-0.5 sm:gap-3 text-xs sm:text-sm">
+                <span className="text-green-600 font-medium whitespace-nowrap">{stats.votes.passed} {t('home.passed')}</span>
+                <span className="text-gray-500 whitespace-nowrap">{stats.votes.total - stats.votes.passed} {t('home.rejected')}</span>
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {t('home.passRate')}: {Math.round((stats.votes.passed / (stats.votes.total || 1)) * 100)}%
-              </div>
+              <div className="text-xs text-gray-500 mt-1">{t('home.passRate')}: {Math.round((stats.votes.passed / (stats.votes.total || 1)) * 100)}%</div>
             </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Users className="h-8 w-8 text-purple-600" />
+            <div className="p-2 sm:p-3 bg-purple-100 rounded-lg shrink-0">
+              <Users className="h-5 w-5 sm:h-8 sm:w-8 text-purple-600" />
             </div>
           </div>
         </Link>
 
         {/* Quick Access */}
-        <div className="card bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-lg transition-all duration-200">
+        <div className="card bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-lg transition-all duration-200 !p-4">
           <div className="text-center">
-            <div className="p-3 bg-orange-200 rounded-lg w-fit mx-auto mb-3">
-              <Calendar className="h-8 w-8 text-orange-600" />
+            <div className="p-2 sm:p-3 bg-orange-200 rounded-lg w-fit mx-auto mb-2 sm:mb-3">
+              <Calendar className="h-5 w-5 sm:h-8 sm:w-8 text-orange-600" />
             </div>
-            <p className="text-sm font-medium text-orange-800 mb-2">{t('home.recentCouncilVotes')}</p>
-            <p className="text-2xl font-bold text-orange-900">
-              {stats.votes.total}
-            </p>
-            <p className="text-xs text-orange-700 mt-1">
-              {t('home.totalVotes')}
-            </p>
+            <p className="text-xs sm:text-sm font-medium text-orange-800 mb-1 sm:mb-2">{t('home.recentCouncilVotes')}</p>
+            <p className="text-xl sm:text-2xl font-bold text-orange-900">{stats.votes.total}</p>
+            <p className="text-xs text-orange-700 mt-1">{t('home.totalVotes')}</p>
           </div>
         </div>
       </div>
 
       {/* Recent Tenders & Projects */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8">
         {/* Recent Public Tenders */}
         <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              {t('home.newTenders')}
+          <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2 min-w-0">
+              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600 shrink-0" />
+              <span className="truncate">{t('home.newTenders')}</span>
             </h2>
-            <Link 
-              to="/map" 
-              className="flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm"
-            >
-              {t('home.seeAllTenders')}
-              <ArrowRight className="h-4 w-4 ml-1" />
+            <Link to="/map" className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium text-xs sm:text-sm whitespace-nowrap shrink-0">
+              {t('home.seeAllTenders')}<ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
@@ -382,7 +351,7 @@ function Home() {
                       )}
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ml-4 ${
-                      tender.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                      tender.status === 'active' ? 'bg-primary-100 text-primary-800' :
                       tender.status === 'completed' ? 'bg-green-100 text-green-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
@@ -398,14 +367,13 @@ function Home() {
 
         {/* Recent Council Votes */}
         <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-orange-600" />
-              {t('home.recentCouncilVotes')}
+          <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2 min-w-0">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 shrink-0" />
+              <span className="truncate">{t('home.recentCouncilVotes')}</span>
             </h2>
-            <Link to="/council" className="flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm">
-              {t('home.seeAllVotes')}
-              <ArrowRight className="h-4 w-4 ml-1" />
+            <Link to="/council" className="flex items-center gap-1 text-orange-600 hover:text-orange-700 font-medium text-xs sm:text-sm whitespace-nowrap shrink-0">
+              {t('home.seeAllVotes')}<ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
@@ -450,14 +418,14 @@ function Home() {
           {/* News */}
           {news.length > 0 && (
             <div className="card">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary-600" />
-                  {t('home.newsFromMunicipality')}
+              <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+                <h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2 min-w-0">
+                  <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600 shrink-0" />
+                  <span className="truncate">{t('home.newsFromMunicipality')}</span>
                 </h2>
                 <a href="https://www.starazagora.bg/bg/novini" target="_blank" rel="noopener noreferrer"
-                  className="flex items-center text-primary-600 hover:text-primary-700 font-medium text-sm">
-                  {t('home.seeAllNews')} <ArrowRight className="h-4 w-4 ml-1" />
+                  className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium text-xs sm:text-sm whitespace-nowrap shrink-0">
+                  {t('home.seeAllNews')}<ArrowRight className="h-3.5 w-3.5" />
                 </a>
               </div>
               <div className="space-y-4">
@@ -485,14 +453,14 @@ function Home() {
           {/* Events */}
           {events.length > 0 && (
             <div className="card">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-orange-600" />
-                  {t('home.eventsInCity')}
+              <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+                <h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2 min-w-0">
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 shrink-0" />
+                  <span className="truncate">{t('home.eventsInCity')}</span>
                 </h2>
                 <a href="https://www.starazagora.bg/bg/sabitiya" target="_blank" rel="noopener noreferrer"
-                  className="flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm">
-                  {t('home.seeAllEvents')} <ArrowRight className="h-4 w-4 ml-1" />
+                  className="flex items-center gap-1 text-orange-600 hover:text-orange-700 font-medium text-xs sm:text-sm whitespace-nowrap shrink-0">
+                  {t('home.seeAllEvents')}<ArrowRight className="h-3.5 w-3.5" />
                 </a>
               </div>
               <div className="space-y-4">
@@ -528,9 +496,9 @@ function Home() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Contact Information */}
-          <div className="text-center p-4 bg-blue-50 rounded-xl">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <Building className="h-6 w-6 text-blue-600" />
+          <div className="text-center p-4 bg-primary-50 rounded-xl">
+            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <Building className="h-6 w-6 text-primary-600" />
             </div>
             <h3 className="font-semibold text-gray-900 mb-2">{t('home.contacts')}</h3>
             <div className="text-sm text-gray-600 space-y-1">
@@ -593,32 +561,32 @@ function Home() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Public Documents */}
-          <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+          <div className="p-6 bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl border border-primary-200">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-200 rounded-lg">
-                <FileText className="h-6 w-6 text-blue-700" />
+              <div className="p-2 bg-primary-200 rounded-lg">
+                <FileText className="h-6 w-6 text-primary-700" />
               </div>
-              <h3 className="text-lg font-semibold text-blue-900">{t('home.publicDocuments')}</h3>
+              <h3 className="text-lg font-semibold text-primary-900">{t('home.publicDocuments')}</h3>
             </div>
-            <ul className="space-y-2 text-sm text-blue-800">
+            <ul className="space-y-2 text-sm text-primary-800">
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                <div className="w-1.5 h-1.5 bg-primary-600 rounded-full"></div>
                 {t('home.sessionMinutes')}
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                <div className="w-1.5 h-1.5 bg-primary-600 rounded-full"></div>
                 {t('home.municipalOrdinances')}
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                <div className="w-1.5 h-1.5 bg-primary-600 rounded-full"></div>
                 {t('home.strategicDocs')}
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                <div className="w-1.5 h-1.5 bg-primary-600 rounded-full"></div>
                 {t('home.activityReports')}
               </li>
             </ul>
-            <button className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+            <button className="mt-4 w-full bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium">
               {t('home.accessDocuments')}
             </button>
           </div>

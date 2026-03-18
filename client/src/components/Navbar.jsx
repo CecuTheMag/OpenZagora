@@ -8,6 +8,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import logoFull from '../assets/logo-full.png'
 import { 
   Home, 
   Map, 
@@ -15,7 +16,6 @@ import {
   Users, 
   Menu, 
   X,
-  Building2,
   Globe
 } from 'lucide-react'
 
@@ -40,12 +40,8 @@ function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo and brand */}
-          <Link to="/" className="flex items-center space-x-2">
-            <Building2 className="h-8 w-8 text-primary-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{t('nav.openZagora')}</h1>
-              <p className="text-xs text-gray-500 hidden sm:block">{t('nav.transparencyDashboard')}</p>
-            </div>
+          <Link to="/" className="flex items-center">
+            <img src={logoFull} alt="Open Zagora" className="h-10 w-auto" />
           </Link>
 
           {/* Desktop Navigation */}

@@ -600,68 +600,65 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       {/* Executive Summary Cards - KPI Section */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Income */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-5 border border-blue-200 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-        <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">{t('cards.totalIncome')}</p>
-              <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(totals.income)}</p>
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 sm:p-5 border border-blue-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide truncate">{t('cards.totalIncome')}</p>
+              <p className="text-base sm:text-2xl font-bold text-blue-900 mt-1 truncate">{formatCurrency(totals.income)}</p>
               <p className="text-xs text-blue-600 mt-1">{t('label.items', { count: incomeData.length })}</p>
             </div>
-            <div className="p-2 bg-blue-200 rounded-lg">
-              <ArrowUpDown className="h-5 w-5 text-blue-700" />
+            <div className="p-1.5 sm:p-2 bg-blue-200 rounded-lg self-start shrink-0">
+              <ArrowUpDown className="h-4 w-4 sm:h-5 sm:w-5 text-blue-700" />
             </div>
           </div>
         </div>
 
         {/* Total Expenses */}
-        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-5 border border-red-200 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-        <p className="text-xs font-medium text-red-600 uppercase tracking-wide">{t('cards.totalExpenses')}</p>
-              <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(totals.expenses)}</p>
+        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-3 sm:p-5 border border-red-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-red-600 uppercase tracking-wide truncate">{t('cards.totalExpenses')}</p>
+              <p className="text-base sm:text-2xl font-bold text-red-900 mt-1 truncate">{formatCurrency(totals.expenses)}</p>
               <p className="text-xs text-red-600 mt-1">{t('label.items', { count: expenseData.length })}</p>
             </div>
-            <div className="p-2 bg-red-200 rounded-lg">
-              <TrendingDown className="h-5 w-5 text-red-700" />
+            <div className="p-1.5 sm:p-2 bg-red-200 rounded-lg self-start shrink-0">
+              <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5 text-red-700" />
             </div>
           </div>
         </div>
 
         {/* Budget Balance */}
-        <div className={`bg-gradient-to-br rounded-xl p-5 border shadow-sm ${balanceBg}`}>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className={`text-xs font-medium ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'} uppercase tracking-wide`}>{t('cards.budgetBalance')}</p>
-              <p className={`text-2xl font-bold mt-1 ${balanceColor}`}>{formatCurrency(totals.balance)}</p>
+        <div className={`bg-gradient-to-br rounded-xl p-3 sm:p-5 border shadow-sm ${balanceBg}`}>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+            <div className="min-w-0">
+              <p className={`text-xs font-medium ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'} uppercase tracking-wide truncate`}>{t('cards.budgetBalance')}</p>
+              <p className={`text-base sm:text-2xl font-bold mt-1 truncate ${balanceColor}`}>{formatCurrency(totals.balance)}</p>
               <p className={`text-xs mt-1 ${totals.balance >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
                 {totals.balance >= 0 ? t('label.surplus') : t('label.deficit')}
               </p>
             </div>
-            <div className={`p-2 rounded-lg ${totals.balance >= 0 ? 'bg-green-200' : 'bg-orange-200'}`}>
+            <div className={`p-1.5 sm:p-2 rounded-lg self-start shrink-0 ${totals.balance >= 0 ? 'bg-green-200' : 'bg-orange-200'}`}>
               {totals.balance >= 0 ? (
-                <TrendingUp className={`h-5 w-5 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
+                <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
               ) : (
-                <TrendingDown className={`h-5 w-5 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
+                <TrendingDown className={`h-4 w-4 sm:h-5 sm:w-5 ${totals.balance >= 0 ? 'text-green-700' : 'text-orange-700'}`} />
               )}
             </div>
           </div>
         </div>
 
         {/* Budget Utilization */}
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-5 border border-purple-200 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">{t('cards.utilizationRate')}</p>
-              <p className="text-2xl font-bold text-purple-900 mt-1">{totals.utilizationRate}%</p>
-              <div className="mt-2 w-full bg-purple-200 rounded-full h-1.5">
-                <div 
-                  className="h-1.5 rounded-full bg-purple-600"
-                  style={{ width: `${Math.min(totals.utilizationRate, 100)}%` }}
-                ></div>
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 sm:p-5 border border-purple-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-purple-600 uppercase tracking-wide truncate">{t('cards.utilizationRate')}</p>
+              <p className="text-base sm:text-2xl font-bold text-purple-900 mt-1">{totals.utilizationRate}%</p>
+              <div className="mt-1.5 sm:mt-2 w-full bg-purple-200 rounded-full h-1.5">
+                <div className="h-1.5 rounded-full bg-purple-600" style={{ width: `${Math.min(totals.utilizationRate, 100)}%` }}></div>
               </div>
             </div>
-            <div className="p-2 bg-purple-200 rounded-lg">
-              <Percent className="h-5 w-5 text-purple-700" />
+            <div className="p-1.5 sm:p-2 bg-purple-200 rounded-lg self-start shrink-0">
+              <Percent className="h-4 w-4 sm:h-5 sm:w-5 text-purple-700" />
             </div>
           </div>
         </div>
@@ -670,66 +667,66 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
       {/* Quick Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Active Loans */}
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">{t('cards.activeLoans')}</span>
-            <CreditCard className="h-4 w-4 text-gray-400" />
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-xs sm:text-sm text-gray-500 truncate">{t('cards.activeLoans')}</span>
+            <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 shrink-0" />
           </div>
-          <p className="text-xl font-bold text-gray-900">{formatCurrency(loanSummary.totalOriginal)}</p>
-          <p className="text-xs text-gray-500 mt-1">{t('label.loans', { count: loanSummary.count, remaining: formatCurrency(loanSummary.totalRemaining) })}</p>
+          <p className="text-sm sm:text-xl font-bold text-gray-900 truncate">{formatCurrency(loanSummary.totalOriginal)}</p>
+          <p className="text-xs text-gray-500 mt-1 truncate">{t('label.loans', { count: loanSummary.count, remaining: formatCurrency(loanSummary.totalRemaining) })}</p>
         </div>
 
         {/* Village Budgets */}
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">{t('cards.villageAllocations')}</span>
-            <MapPin className="h-4 w-4 text-gray-400" />
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-xs sm:text-sm text-gray-500 truncate">{t('cards.villageAllocations')}</span>
+            <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 shrink-0" />
           </div>
-          <p className="text-xl font-bold text-gray-900">{formatCurrency(villageData.reduce((s, v) => s + parseFloat(v.total_amount || 0), 0))}</p>
+          <p className="text-sm sm:text-xl font-bold text-gray-900 truncate">{formatCurrency(villageData.reduce((s, v) => s + parseFloat(v.total_amount || 0), 0))}</p>
           <p className="text-xs text-gray-500 mt-1">{villageData.length} villages</p>
         </div>
 
         {/* Indicators Performance */}
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">{t('tabs.indicators')}</span>
-            <Target className="h-4 w-4 text-gray-400" />
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-xs sm:text-sm text-gray-500 truncate">{t('tabs.indicators')}</span>
+            <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 shrink-0" />
           </div>
-          <p className="text-xl font-bold text-gray-900">{indicatorSummary.executionRate}%</p>
-          <p className="text-xs text-gray-500 mt-1">{t('label.indicators', { count: indicatorSummary.count, executed: formatCurrency(indicatorSummary.totalExecuted) })}</p>
+          <p className="text-sm sm:text-xl font-bold text-gray-900">{indicatorSummary.executionRate}%</p>
+          <p className="text-xs text-gray-500 mt-1 truncate">{t('label.indicators', { count: indicatorSummary.count, executed: formatCurrency(indicatorSummary.totalExecuted) })}</p>
         </div>
 
         {/* Budget Health Score */}
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">{t('cards.budgetHealth')}</span>
-            <Activity className="h-4 w-4 text-gray-400" />
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-1 sm:mb-2">
+            <span className="text-xs sm:text-sm text-gray-500 truncate">{t('cards.budgetHealth')}</span>
+            <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 shrink-0" />
           </div>
-          <p className={`text-xl font-bold ${parseFloat(totals.utilizationRate) <= 100 ? 'text-green-600' : 'text-red-600'}`}>
+          <p className={`text-sm sm:text-xl font-bold ${parseFloat(totals.utilizationRate) <= 100 ? 'text-green-600' : 'text-red-600'}`}>
             {parseFloat(totals.utilizationRate) <= 100 ? t('label.good') : t('label.overBudget')}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{parseFloat(totals.utilizationRate) <= 100 ? t('label.remaining', { pct: (100 - parseFloat(totals.utilizationRate)).toFixed(1) }) : t('label.exceedsIncome')}</p>
+          <p className="text-xs text-gray-500 mt-1 truncate">{parseFloat(totals.utilizationRate) <= 100 ? t('label.remaining', { pct: (100 - parseFloat(totals.utilizationRate)).toFixed(1) }) : t('label.exceedsIncome')}</p>
         </div>
       </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Income Distribution Chart */}
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">{t('chart.incomeDistribution')}</h3>
-            <span className="text-sm text-gray-500">{formatMillions(totals.income)}</span>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">{t('chart.incomeDistribution')}</h3>
+            <span className="text-xs sm:text-sm text-gray-500">{formatMillions(totals.income)}</span>
           </div>
-          <div className="h-80">
+          <div className="h-64 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'pie' ? (
                 <PieChart>
                   <Pie
                     data={incomeChartData.slice(0, 6)}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
+                    cy="40%"
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={2}
                     dataKey="value"
                   >
@@ -738,25 +735,21 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => formatCurrency(value)} />
-                  <Legend 
-                    layout="vertical" 
-                    align="right" 
-                    verticalAlign="middle"
+                  <Legend
+                    layout="horizontal"
+                    align="center"
+                    verticalAlign="bottom"
                     iconType="circle"
-                    iconSize={10}
-                    formatter={(value, entry) => {
-                      const item = incomeChartData.find(d => d.name === value)
-                      return (
-                        <span className="text-sm text-gray-700">
-                          {value.length > 20 ? value.substring(0, 20) + '...' : value} 
-                          <span className="ml-2 text-gray-500">({item?.percentage}%)</span>
-                        </span>
-                      )
-                    }}
+                    iconSize={8}
+                    formatter={(value) => (
+                      <span style={{fontSize: '11px', color: '#374151'}}>
+                        {value.length > 18 ? value.substring(0, 18) + '…' : value}
+                      </span>
+                    )}
                   />
                 </PieChart>
               ) : (
-                <BarChart data={incomeChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
+                <BarChart data={incomeChartData.slice(0, 6)} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={(v) => formatMillions(v)} tick={{ fontSize: 10 }} />
                   <YAxis type="category" dataKey="name" width={80} tick={{fontSize: 10}} />
@@ -769,21 +762,21 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
         </div>
 
         {/* Expense Distribution Chart */}
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">{t('chart.expensesByFunction')}</h3>
-            <span className="text-sm text-gray-500">{formatMillions(totals.expenses)}</span>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">{t('chart.expensesByFunction')}</h3>
+            <span className="text-xs sm:text-sm text-gray-500">{formatMillions(totals.expenses)}</span>
           </div>
-          <div className="h-80">
+          <div className="h-64 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'pie' ? (
                 <PieChart>
                   <Pie
                     data={expenseChartData.slice(0, 6)}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
+                    cy="40%"
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={2}
                     dataKey="value"
                   >
@@ -792,25 +785,21 @@ function SummaryTab({ totals, incomeData, expenseData, indicatorData, loanData, 
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => formatCurrency(value)} />
-                  <Legend 
-                    layout="vertical" 
-                    align="right" 
-                    verticalAlign="middle"
+                  <Legend
+                    layout="horizontal"
+                    align="center"
+                    verticalAlign="bottom"
                     iconType="circle"
-                    iconSize={10}
-                    formatter={(value, entry) => {
-                      const item = expenseChartData.find(d => d.name === value)
-                      return (
-                        <span className="text-sm text-gray-700">
-                          {value.length > 20 ? value.substring(0, 20) + '...' : value}
-                          <span className="ml-2 text-gray-500">({item?.percentage}%)</span>
-                        </span>
-                      )
-                    }}
+                    iconSize={8}
+                    formatter={(value) => (
+                      <span style={{fontSize: '11px', color: '#374151'}}>
+                        {value.length > 18 ? value.substring(0, 18) + '…' : value}
+                      </span>
+                    )}
                   />
                 </PieChart>
               ) : (
-                <BarChart data={expenseChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
+                <BarChart data={expenseChartData.slice(0, 6)} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" tickFormatter={(v) => formatMillions(v)} tick={{ fontSize: 10 }} />
                   <YAxis type="category" dataKey="name" width={80} tick={{fontSize: 10}} />
