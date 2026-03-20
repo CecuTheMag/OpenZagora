@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Shield, Lock, User, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 const AdminLogin = () => {
   const [username, setUsername] = useState('');
@@ -57,8 +58,8 @@ const AdminLogin = () => {
       <div className="max-w-md w-full space-y-8">
         {/* Logo and Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg">
-            <Shield className="h-10 w-10 text-white" />
+          <div className="mx-auto flex items-center justify-center">
+            <img src={logo} alt="Open Zagora" className="h-16 w-16" />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Open Zagora Admin

@@ -15,6 +15,9 @@ RUN npm install
 # Copy application code
 COPY . .
 
+# Copy logo to public for favicon
+COPY src/assets/logo.png public/logo.png
+
 # Build the application
 RUN npm run build
 

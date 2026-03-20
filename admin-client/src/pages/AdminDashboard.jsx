@@ -1,24 +1,29 @@
-/**
- * Admin Dashboard Page
- * 
- * Main admin interface with PDF upload functionality
- * Enterprise-grade with drag-and-drop, progress tracking, and audit logging
- */
-
 import React, { useState, useRef, useCallback } from 'react';
+import logo from '../assets/logo.png';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Upload, FileText, LogOut, User, Shield, 
-  CheckCircle, AlertCircle, Loader2, X, 
-  FileUp, History, Settings, ChevronDown, ChevronUp,
-  Database, Lock, FolderOpen, Table, MapPin, Vote, Archive,
-  RefreshCw, LocateFixed, Map
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Upload, FileText, LogOut, User, Shield,
+  CheckCircle, AlertCircle, Loader2, X,
+  FileUp, History, ChevronDown, ChevronUp,
+  Database, FolderOpen, MapPin, Vote, Archive,
+  RefreshCw, LocateFixed, Map, LayoutDashboard, Menu
 } from 'lucide-react';
+
+const NAV = [
+  { label: 'Dashboard',        icon: LayoutDashboard, path: '/dashboard' },
+  { label: 'Database',         icon: Database,        path: '/database' },
+  { label: 'Projects',         icon: MapPin,          path: '/projects' },
+  { label: 'Council Votes',    icon: Vote,            path: '/council-votes' },
+];
 
 const AdminDashboard = () => {
   const { user, logout, api } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('single');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState(null);
@@ -31,762 +36,447 @@ const AdminDashboard = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [uploadHistory, setUploadHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  
-  // Folder upload state
-  const [activeTab, setActiveTab] = useState('single'); // 'single' or 'folder'
   const [folderPath, setFolderPath] = useState('/app/budget-pdfs');
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [isProcessingFolder, setIsProcessingFolder] = useState(false);
   const [folderResult, setFolderResult] = useState(null);
   const [folderError, setFolderError] = useState(null);
-  
-  // Map data management state
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [mapDataResult, setMapDataResult] = useState(null);
   const [mapDataError, setMapDataError] = useState(null);
-  
   const fileInputRef = useRef(null);
 
-  // Handle drag events
   const handleDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    e.preventDefault(); e.stopPropagation();
+    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
   }, []);
 
-  // Handle drop event
   const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     setDragActive(false);
-
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFileSelect(files[0]);
-    }
+    if (e.dataTransfer.files?.[0]) handleFileSelect(e.dataTransfer.files[0]);
   }, []);
 
-  // Handle file selection
   const handleFileSelect = (file) => {
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (!allowedTypes.includes(file.type)) {
-      setUploadError('Only PDF and ZIP files are allowed');
-      setSelectedFile(null);
-      return;
-    }
-
-    // Validate file size (50MB max)
-    if (file.size > 50 * 1024 * 1024) {
-      setUploadError('File size must be less than 50MB');
-      setSelectedFile(null);
-      return;
-    }
-
-    setUploadError(null);
-    setSelectedFile(file);
-    setUploadResult(null);
+    const allowed = ['application/pdf', 'application/zip', 'application/x-zip-compressed'];
+    if (!allowed.includes(file.type)) { setUploadError('Only PDF and ZIP files are allowed'); return; }
+    if (file.size > 50 * 1024 * 1024) { setUploadError('File size must be less than 50MB'); return; }
+    setUploadError(null); setSelectedFile(file); setUploadResult(null);
   };
 
-  // Handle file input change
-  const handleFileInputChange = (e) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileSelect(files[0]);
-    }
+  const clearFile = () => {
+    setSelectedFile(null); setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Handle upload
   const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadError('Please select a PDF or ZIP file');
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setUploadError(null);
-    setUploadResult(null);
-
+    if (!selectedFile) { setUploadError('Please select a file'); return; }
+    setIsUploading(true); setUploadProgress(0); setUploadError(null); setUploadResult(null);
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('type', documentType);
-      if (customTitle.trim()) {
-        formData.append('title', customTitle.trim());
-      }
-      if (customDescription.trim()) {
-        formData.append('description', customDescription.trim());
-      }
-
+      if (customTitle.trim()) formData.append('title', customTitle.trim());
+      if (customDescription.trim()) formData.append('description', customDescription.trim());
       const response = await api.post('/admin/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          setUploadProgress(progress);
-        }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => setUploadProgress(Math.round((e.loaded * 100) / e.total))
       });
-
       if (response.data.success) {
         setUploadResult(response.data.data);
-        setSelectedFile(null);
-        setCustomTitle('');
-        setCustomDescription('');
-        
-        // Refresh upload history
-        if (showHistory) {
-          fetchUploadHistory();
-        }
+        setSelectedFile(null); setCustomTitle(''); setCustomDescription('');
+        if (showHistory) fetchUploadHistory();
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Upload failed. Please try again.';
-      setUploadError(errorMessage);
-      console.error('Upload error:', err);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
+      setUploadError(err.response?.data?.message || 'Upload failed. Please try again.');
+    } finally { setIsUploading(false); setUploadProgress(0); }
   };
 
-  // Fetch upload history
   const fetchUploadHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const response = await api.get('/admin/upload/history');
-      if (response.data.success) {
-        setUploadHistory(response.data.data.uploads || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch upload history:', err);
-    } finally {
-      setIsLoadingHistory(false);
-    }
+      const r = await api.get('/admin/upload/history');
+      if (r.data.success) setUploadHistory(r.data.data.uploads || []);
+    } catch {}
+    finally { setIsLoadingHistory(false); }
   };
 
-  // Toggle history view
   const toggleHistory = () => {
-    if (!showHistory) {
-      fetchUploadHistory();
-    }
+    if (!showHistory) fetchUploadHistory();
     setShowHistory(!showHistory);
   };
 
-  // Handle map data fetch
   const handleMapDataFetch = async () => {
-    setIsFetchingData(true);
-    setMapDataError(null);
-    setMapDataResult(null);
-
+    setIsFetchingData(true); setMapDataError(null); setMapDataResult(null);
     try {
-      // Call the main server (port 5000) for map data operations
-      const mainServerAPI = '/api';
-      
       const [eopRes, osmRes] = await Promise.allSettled([
-        fetch(`${mainServerAPI}/eop/fetch-and-import`, { method: 'POST' }),
-        fetch(`${mainServerAPI}/osm/fetch`, { method: 'POST' }),
+        fetch('/api/eop/fetch-and-import', { method: 'POST' }),
+        fetch('/api/osm/fetch', { method: 'POST' }),
       ]);
-      
       const eop = eopRes.status === 'fulfilled' ? await eopRes.value.json() : null;
       const osm = osmRes.status === 'fulfilled' ? await osmRes.value.json() : null;
-      
-      const results = [];
-      if (eop?.success) {
-        results.push(`EOP: ${eop.data.import.imported} new, ${eop.data.import.updated} updated`);
-      } else {
-        results.push('EOP: failed');
-      }
-      
-      if (osm?.success) {
-        results.push(`OSM: fetching in background`);
-      } else {
-        results.push('OSM: failed');
-      }
-      
       setMapDataResult({
         eop: eop?.success ? eop.data : null,
         osm: osm?.success ? osm.data : null,
-        summary: results.join(' | ')
+        summary: [
+          eop?.success ? `EOP: ${eop.data.import.imported} new, ${eop.data.import.updated} updated` : 'EOP: failed',
+          osm?.success ? 'OSM: fetching in background' : 'OSM: failed',
+        ].join(' | ')
       });
-      
-    } catch (err) {
-      const errorMessage = err.message || 'Failed to fetch map data';
-      setMapDataError(errorMessage);
-    } finally {
-      setIsFetchingData(false);
-    }
+    } catch (err) { setMapDataError(err.message || 'Failed to fetch map data'); }
+    finally { setIsFetchingData(false); }
   };
 
-  // Handle geocoding
   const handleGeocode = async () => {
-    setIsGeocoding(true);
-    setMapDataError(null);
-    setMapDataResult(null);
-
+    setIsGeocoding(true); setMapDataError(null); setMapDataResult(null);
     try {
-      // Call the main server (port 5000) for geocoding
-      const mainServerAPI = '/api';
-      
-      await Promise.all([
-        fetch(`${mainServerAPI}/eop/geocode`, { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ method: 'hybrid' })
-        }),
-        fetch(`${mainServerAPI}/eop/geocode`, { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ method: 'poi' })
-        })
-      ]);
-      
-      setMapDataResult({
-        geocoding: true,
-        summary: 'Geocoding started in background. Check map in a few minutes.'
-      });
-      
-    } catch (err) {
-      const errorMessage = err.message || 'Failed to start geocoding';
-      setMapDataError(errorMessage);
-    } finally {
-      setIsGeocoding(false);
-    }
+      await fetch('/api/eop/geocode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method: 'hybrid' }) });
+      setMapDataResult({ geocoding: true, summary: 'Geocoding started in background. Check map in a few minutes.' });
+    } catch (err) { setMapDataError(err.message || 'Failed to start geocoding'); }
+    finally { setIsGeocoding(false); }
   };
 
-  // Handle folder upload - runs the shell script to import all budget data
   const handleFolderUpload = async () => {
-    if (!folderPath.trim()) {
-      setFolderError('Please enter a folder path');
-      return;
-    }
-
-    setIsProcessingFolder(true);
-    setFolderError(null);
-    setFolderResult(null);
-
+    if (!folderPath.trim()) { setFolderError('Please enter a folder path'); return; }
+    setIsProcessingFolder(true); setFolderError(null); setFolderResult(null);
     try {
-      // Use the new budget import endpoint that runs the shell script
-      const response = await api.post('/admin/budget/import', {
-        folderPath: folderPath.trim(),
-        year: year
-      });
-
-      if (response.data.success) {
-        setFolderResult(response.data.data);
-        
-        // Refresh upload history
-        if (showHistory) {
-          fetchUploadHistory();
-        }
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Folder processing failed. Please check the path and try again.';
-      setFolderError(errorMessage);
-      console.error('Folder upload error:', err);
-    } finally {
-      setIsProcessingFolder(false);
-    }
+      const r = await api.post('/admin/budget/import', { folderPath: folderPath.trim(), year });
+      if (r.data.success) { setFolderResult(r.data.data); if (showHistory) fetchUploadHistory(); }
+    } catch (err) { setFolderError(err.response?.data?.message || 'Folder processing failed.'); }
+    finally { setIsProcessingFolder(false); }
   };
 
-  // Clear selected file
-  const clearFile = () => {
-    setSelectedFile(null);
-    setUploadError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // Format date
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  // Get document type label
-  const getDocumentTypeLabel = (type) => {
-    const labels = {
-      project: 'Municipal Project',
-      budget: 'Budget Document',
-      vote: 'Council Vote',
-      council_vote: 'Council Vote',
-      unknown: 'Unknown Document'
-    };
-    return labels[type] || type;
-  };
+  const formatDate = (d) => new Date(d).toLocaleString();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="bg-primary-600 rounded-lg p-2 mr-3">
-                <Shield className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Open Zagora Admin</h1>
-                <p className="text-xs text-gray-500">Enterprise Management Interface</p>
-              </div>
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+
+      {/* Top Header */}
+      <header className="bg-white border-b border-gray-200 shadow-sm z-20">
+        <div className="flex items-center justify-between h-14 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button className="md:hidden p-1.5 rounded-lg text-gray-600 hover:bg-gray-100" onClick={() => setSidebarOpen(o => !o)}>
+              <Menu className="h-5 w-5" />
+            </button>
+            <img src={logo} alt="Open Zagora" className="h-8 w-8" />
+            <div>
+              <span className="font-bold text-gray-900 text-base">Open Zagora</span>
+              <span className="text-gray-400 text-sm ml-2 hidden sm:inline">Admin</span>
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-                <User className="h-4 w-4 mr-2" />
-                <span className="font-medium">{user?.username}</span>
-                <span className="mx-2 text-gray-400">|</span>
-                <span className="text-xs uppercase tracking-wide text-primary-600 font-semibold">
-                  {user?.role}
-                </span>
-              </div>
-              
-              <button
-                onClick={logout}
-                className="btn-secondary text-sm"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
+              <User className="h-4 w-4" />
+              <span className="font-medium">{user?.username}</span>
+              <span className="text-gray-300">|</span>
+              <span className="text-xs text-primary-600 font-semibold uppercase">{user?.role}</span>
             </div>
+            <button onClick={logout} className="btn-secondary text-sm flex items-center gap-2">
+              <LogOut className="h-4 w-4" /><span className="hidden sm:inline">Logout</span>
+            </button>
           </div>
         </div>
       </header>
 
-{/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Upload Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Upload Card */}
-            <div className="card">
-              <div className="card-header flex items-center justify-between">
-                <div className="flex items-center">
-                  <FileUp className="h-5 w-5 text-primary-600 mr-2" />
-                  <h2 className="text-lg font-semibold text-gray-900">PDF Document Upload</h2>
+      <div className="flex flex-1 relative">
+        {/* Sidebar overlay on mobile */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 bg-black/30 z-10 md:hidden" onClick={() => setSidebarOpen(false)} />
+        )}
+        {/* Sidebar */}
+        <aside className={`${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0 fixed md:static top-0 left-0 h-full md:h-auto w-56 bg-white border-r border-gray-200 flex flex-col py-4 gap-1 shrink-0 z-20 transition-transform duration-200 pt-16 md:pt-4`}>
+          {NAV.map(({ label, icon: Icon, path }) => (
+            <button
+              key={path}
+              onClick={() => navigate(path)}
+              className={`flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                location.pathname === path
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {label}
+            </button>
+          ))}
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">
+          <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
+
+            {/* Page title */}
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Manage uploads, map data, and system operations</p>
+            </div>
+
+            {/* Quick nav cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Database Manager', icon: Database, path: '/database', color: 'text-primary-600 bg-primary-50' },
+                { label: 'Projects', icon: MapPin, path: '/projects', color: 'text-green-600 bg-green-50' },
+                { label: 'Council Votes', icon: Vote, path: '/council-votes', color: 'text-purple-600 bg-purple-50' },
+                { label: 'Map Data', icon: Map, path: null, color: 'text-orange-600 bg-orange-50', scroll: 'map-section' },
+              ].map(({ label, icon: Icon, path, color, scroll }) => (
+                <button
+                  key={label}
+                  onClick={() => path ? navigate(path) : document.getElementById(scroll)?.scrollIntoView({ behavior: 'smooth' })}
+                  className="card p-4 text-left hover:shadow-md transition-shadow"
+                >
+                  <div className={`inline-flex p-2 rounded-lg ${color} mb-3`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900">{label}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Upload + Map Data row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* Upload Card — takes 2 cols */}
+              <div className="lg:col-span-2 card">
+                <div className="card-header flex items-center gap-2">
+                  <FileUp className="h-4 w-4 text-primary-600" />
+                  <h2 className="font-semibold text-gray-900">PDF Document Upload</h2>
                 </div>
-                <div className="flex items-center text-xs text-gray-500">
-                  <Database className="h-4 w-4 mr-1" />
-                  Main Database
+
+                {/* Tabs */}
+                <div className="border-b border-gray-200 flex">
+                  {[['single', FileText, 'Single File'], ['folder', FolderOpen, 'Full Year Folder']].map(([tab, Icon, label]) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === tab ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />{label}
+                    </button>
+                  ))}
                 </div>
-              </div>
-              
-              {/* Tab Selection */}
-              <div className="border-b border-gray-200">
-                <nav className="-mb-px flex" aria-label="Tabs">
-                  <button
-                    onClick={() => setActiveTab('single')}
-                    className={`w-1/2 py-3 px-1 text-center border-b-2 font-medium text-sm ${
-                      activeTab === 'single'
-                        ? 'border-primary-600 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    <FileText className="h-4 w-4 inline mr-2" />
-                    Single File
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('folder')}
-                    className={`w-1/2 py-3 px-1 text-center border-b-2 font-medium text-sm ${
-                      activeTab === 'folder'
-                        ? 'border-primary-600 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    <FolderOpen className="h-4 w-4 inline mr-2" />
-                    Full Year Folder
-                  </button>
-                </nav>
-              </div>
-              
-              <div className="card-body space-y-6">
-                {activeTab === 'single' ? (
-                  <>
-                    {/* Document Type Selection */}
-                    <div>
-                      <label className="form-label">Document Type</label>
-                      <select
-                        value={documentType}
-                        onChange={(e) => setDocumentType(e.target.value)}
-                        className="form-input"
-                        disabled={isUploading}
-                      >
-                        <option value="project">Municipal Project</option>
-                        <option value="budget">Budget Document</option>
-                        <option value="vote">Council Vote Record</option>
-                        <option value="unknown">Other Document</option>
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        This determines how the document is processed and stored
-                      </p>
-                    </div>
 
-                    {/* Custom Title (Optional) */}
-                    <div>
-                      <label className="form-label">
-                        Custom Title <span className="text-gray-400 font-normal">(Optional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={customTitle}
-                        onChange={(e) => setCustomTitle(e.target.value)}
-                        className="form-input"
-                        placeholder="Override extracted title"
-                        disabled={isUploading}
-                      />
-                    </div>
+                <div className="card-body space-y-4">
+                  {activeTab === 'single' ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="form-label">Document Type</label>
+                          <select value={documentType} onChange={e => setDocumentType(e.target.value)} className="form-input" disabled={isUploading}>
+                            <option value="project">Municipal Project</option>
+                            <option value="budget">Budget Document</option>
+                            <option value="vote">Council Vote</option>
+                            <option value="unknown">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label">Custom Title <span className="text-gray-400 font-normal">(optional)</span></label>
+                          <input type="text" value={customTitle} onChange={e => setCustomTitle(e.target.value)} className="form-input" placeholder="Override extracted title" disabled={isUploading} />
+                        </div>
+                      </div>
 
-                    {/* Custom Description (Optional) */}
-                    <div>
-                      <label className="form-label">
-                        Description <span className="text-gray-400 font-normal">(Optional)</span>
-                      </label>
-                      <textarea
-                        value={customDescription}
-                        onChange={(e) => setCustomDescription(e.target.value)}
-                        className="form-input"
-                        rows={3}
-                        placeholder="Additional context about this document"
-                        disabled={isUploading}
-                      />
-                    </div>
-
-                    {/* Drag and Drop Zone */}
-                    <div>
-                      <label className="form-label">PDF File</label>
-                      
                       {!selectedFile ? (
                         <div
                           className={`drag-drop-zone ${dragActive ? 'drag-over' : ''}`}
-                          onDragEnter={handleDrag}
-                          onDragLeave={handleDrag}
-                          onDragOver={handleDrag}
-                          onDrop={handleDrop}
+                          onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
                           onClick={() => fileInputRef.current?.click()}
                         >
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".pdf,application/pdf,.zip,application/zip,application/x-zip-compressed"
-                            onChange={handleFileInputChange}
-                            className="hidden"
-                            disabled={isUploading}
-                          />
-                          <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-lg font-medium text-gray-900 mb-2">
-                            Drop your PDF or ZIP here
-                          </p>
-                          <p className="text-sm text-gray-500 mb-4">
-                            or click to browse from your computer
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Maximum file size: 50MB
-                          </p>
+                          <input ref={fileInputRef} type="file" accept=".pdf,.zip" onChange={e => e.target.files?.[0] && handleFileSelect(e.target.files[0])} className="hidden" disabled={isUploading} />
+                          <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                          <p className="font-medium text-gray-900">Drop PDF or ZIP here</p>
+                          <p className="text-sm text-gray-500 mt-1">or click to browse · max 50MB</p>
                         </div>
                       ) : (
                         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              {selectedFile.type.includes('zip') ? (
-                                <Archive className="h-8 w-8 text-primary-600 mr-3" />
-                              ) : (
-                                <FileText className="h-8 w-8 text-primary-600 mr-3" />
-                              )}
+                            <div className="flex items-center gap-3">
+                              {selectedFile.type.includes('zip') ? <Archive className="h-7 w-7 text-primary-600" /> : <FileText className="h-7 w-7 text-primary-600" />}
                               <div>
-                                <p className="text-sm font-medium text-gray-900">
-                                  {selectedFile.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
+                                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                                <p className="text-xs text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                               </div>
                             </div>
-                            {!isUploading && (
-                              <button
-                                onClick={clearFile}
-                                className="text-gray-400 hover:text-danger-600 transition-colors"
-                              >
-                                <X className="h-5 w-5" />
-                              </button>
-                            )}
+                            {!isUploading && <button onClick={clearFile} className="text-gray-400 hover:text-danger-600"><X className="h-5 w-5" /></button>}
                           </div>
-                          
                           {isUploading && (
-                            <div className="mt-4">
-                              <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                                <span>Uploading...</span>
-                                <span>{uploadProgress}%</span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                                  style={{ width: `${uploadProgress}%` }}
-                                />
-                              </div>
+                            <div className="mt-3">
+                              <div className="flex justify-between text-xs text-gray-600 mb-1"><span>Uploading...</span><span>{uploadProgress}%</span></div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5"><div className="bg-primary-600 h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} /></div>
                             </div>
                           )}
                         </div>
                       )}
-                    </div>
 
-                    {/* Error Message */}
-                    {uploadError && (
-                      <div className="alert-error flex items-start">
-                        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                        <span>{uploadError}</span>
-                      </div>
-                    )}
-
-                    {/* Success Message */}
-                    {uploadResult && (
-                      <div className="alert-success">
-                        <div className="flex items-start">
-                          <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                      {uploadError && <div className="alert-error flex items-start gap-2"><AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />{uploadError}</div>}
+                      {uploadResult && (
+                        <div className="alert-success flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
                           <div>
                             <p className="font-medium">Upload successful!</p>
-                            <p className="text-sm mt-1">
-                              {uploadResult.fileType === 'zip' ? 'ZIP file processed' : 'PDF uploaded'} - 
-                              {uploadResult.totalFiles} file{uploadResult.totalFiles !== 1 ? 's' : ''} processed, 
-                              {uploadResult.successfulFiles} successful
-                            </p>
-                            <p className="text-sm mt-1">
-                              Total items parsed: {uploadResult.totalItemsParsed.toLocaleString()} | 
-                              Total amount: {uploadResult.totalAmount.toLocaleString()} BGN
-                            </p>
-                            {uploadResult.processedFiles && uploadResult.processedFiles.length > 1 && (
-                              <details className="mt-2">
-                                <summary className="text-sm cursor-pointer text-primary-600 hover:text-primary-800">
-                                  View processed files ({uploadResult.processedFiles.length})
-                                </summary>
-                                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                                  {uploadResult.processedFiles.map((file, index) => (
-                                    <div key={index} className="text-xs bg-gray-50 p-2 rounded">
-                                      <div className="font-medium">{file.originalName}</div>
-                                      <div className="text-gray-600">
-                                        Type: {file.documentType} | Items: {file.itemsParsed} | 
-                                        Amount: {file.totalAmount?.toLocaleString() || 0} BGN
-                                        {file.error && <span className="text-red-600"> | Error: {file.error}</span>}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
+                            <p className="text-sm mt-0.5">{uploadResult.totalFiles} file(s) · {uploadResult.successfulFiles} successful · {uploadResult.totalItemsParsed?.toLocaleString()} items parsed</p>
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Upload Button */}
-                    <button
-                      onClick={handleUpload}
-                      disabled={!selectedFile || isUploading}
-                      className="btn-primary w-full"
-                    >
-                      {isUploading ? (
-                        <>
-                          <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-5 w-5 mr-2" />
-                          Upload Document
-                        </>
                       )}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {/* Folder Upload Section */}
-                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-start">
-                        <FolderOpen className="h-5 w-5 text-primary-600 mr-2 mt-0.5" />
+
+                      <button onClick={handleUpload} disabled={!selectedFile || isUploading} className="btn-primary w-full">
+                        {isUploading ? <><Loader2 className="animate-spin h-4 w-4 mr-2" />Uploading...</> : <><Upload className="h-4 w-4 mr-2" />Upload Document</>}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <p className="text-sm font-medium text-primary-900">Upload Full Year Budget</p>
-                          <p className="text-xs text-primary-700 mt-1">
-                            Select a folder containing all PDF budget files for a year (pr1, pr2, pr3, indicators, loans, etc.)
-                          </p>
+                          <label className="form-label">Budget Year</label>
+                          <select value={year} onChange={e => setYear(e.target.value)} className="form-input" disabled={isProcessingFolder}>
+                            {['2025','2024','2023','2022','2020'].map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label">Folder Path</label>
+                          <input type="text" value={folderPath} onChange={e => setFolderPath(e.target.value)} className="form-input" placeholder="/app/budget-pdfs" disabled={isProcessingFolder} />
                         </div>
                       </div>
-                    </div>
 
-                    {/* Year Selection */}
-                    <div>
-                      <label className="form-label">Budget Year</label>
-                      <select
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        className="form-input"
-                        disabled={isProcessingFolder}
-                      >
-                        <option value="2025">2025</option>
-                        <option value="2024">2024</option>
-                        <option value="2023">2023</option>
-                        <option value="2022">2022</option>
-                        <option value="2020">2020</option>
-                      </select>
-                    </div>
-
-                    {/* Folder Path Input */}
-                    <div>
-                      <label className="form-label">Folder Path</label>
-                      <input
-                        type="text"
-                        value={folderPath}
-                        onChange={(e) => setFolderPath(e.target.value)}
-                        className="form-input"
-                        placeholder="/app/budget-pdfs"
-                        disabled={isProcessingFolder}
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Enter the absolute path to the folder containing PDF files on the server
-                      </p>
-                    </div>
-
-                    {/* Example Path */}
-                    <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
-                      <p className="font-medium mb-1">Example paths:</p>
-                      <p className="font-mono">/app/budget-pdfs</p>
-                    </div>
-
-                    {/* Error Message */}
-                    {folderError && (
-                      <div className="alert-error flex items-start">
-                        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                        <span>{folderError}</span>
-                      </div>
-                    )}
-
-                    {/* Success Message */}
-                    {folderResult && (
-                      <div className="alert-success">
-                        <div className="flex items-start">
-                          <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                      {folderError && <div className="alert-error flex items-start gap-2"><AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />{folderError}</div>}
+                      {folderResult && (
+                        <div className="alert-success flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-medium">Folder processed successfully!</p>
-                            <div className="text-sm mt-2 space-y-1">
-                              <p>Total files: {folderResult.filesCopied || folderResult.pdfFiles?.length || 0}</p>
-                              <p className="font-medium mt-2">Summary:</p>
-                              <p>• Income documents: {folderResult.summary?.income?.items || 0}</p>
-                              <p>• Expense documents: {folderResult.summary?.expenses?.items || 0}</p>
-                              <p>• Indicator documents: {folderResult.summary?.indicators?.items || 0}</p>
-                              <p>• Loan documents: {folderResult.summary?.loans?.items || 0}</p>
-                              <p>• Village documents: {folderResult.summary?.villages?.items || 0}</p>
-                              <p>• Forecast documents: {folderResult.summary?.forecasts?.items || 0}</p>
-                              <p className="font-medium mt-2">
-                                Total items stored: {
-                                  (folderResult.summary?.income?.items || 0) +
-                                  (folderResult.summary?.expenses?.items || 0) +
-                                  (folderResult.summary?.indicators?.items || 0) +
-                                  (folderResult.summary?.loans?.items || 0) +
-                                  (folderResult.summary?.villages?.items || 0) +
-                                  (folderResult.summary?.forecasts?.items || 0)
-                                }
-                              </p>
+                            <p className="font-medium">Folder processed!</p>
+                            <div className="text-sm mt-1 grid grid-cols-2 gap-x-4">
+                              {['income','expenses','indicators','loans','villages','forecasts'].map(k => (
+                                <p key={k}>• {k}: {folderResult.summary?.[k]?.items || 0}</p>
+                              ))}
                             </div>
                           </div>
                         </div>
+                      )}
+
+                      <button onClick={handleFolderUpload} disabled={!folderPath.trim() || isProcessingFolder} className="btn-primary w-full">
+                        {isProcessingFolder ? <><Loader2 className="animate-spin h-4 w-4 mr-2" />Processing...</> : <><FolderOpen className="h-4 w-4 mr-2" />Process Year Folder</>}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Right column: user info + security */}
+              <div className="space-y-4">
+                <div className="card">
+                  <div className="card-header flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary-600" />
+                    <h2 className="font-semibold text-gray-900">Administrator</h2>
+                  </div>
+                  <div className="card-body space-y-3">
+                    {[['Username', user?.username], ['Email', user?.email]].map(([l, v]) => (
+                      <div key={l}>
+                        <p className="text-xs font-medium text-gray-500 uppercase">{l}</p>
+                        <p className="text-sm text-gray-900 mt-0.5">{v}</p>
+                      </div>
+                    ))}
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase">Role</p>
+                      <span className={`inline-flex mt-0.5 px-2 py-0.5 text-xs font-semibold rounded-full ${user?.role === 'super_admin' ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {user?.role}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-primary-600" />
+                    <h2 className="font-semibold text-gray-900">Security</h2>
+                  </div>
+                  <div className="card-body">
+                    <div className="flex items-center gap-2 text-sm text-success-700 bg-success-50 p-2.5 rounded-md mb-3">
+                      <Shield className="h-4 w-4 shrink-0" /> Authenticated & secure
+                    </div>
+                    <ul className="text-xs text-gray-500 space-y-1">
+                      <li>• All actions are logged</li>
+                      <li>• Session expires after 24h</li>
+                      <li>• Uploads are validated</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Map Data Management */}
+            <div id="map-section" className="card">
+              <div className="card-header flex items-center gap-2">
+                <Map className="h-4 w-4 text-primary-600" />
+                <h2 className="font-semibold text-gray-900">Map Data Management</h2>
+              </div>
+              <div className="card-body">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">Fetch fresh data from external sources (EOP + OSM) and geocode tenders without coordinates.</p>
+                    {mapDataResult && (
+                      <div className="alert-success flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-sm">Done!</p>
+                          <p className="text-xs mt-0.5">{mapDataResult.summary}</p>
+                        </div>
                       </div>
                     )}
-
-                    {/* Process Folder Button */}
-                    <button
-                      onClick={handleFolderUpload}
-                      disabled={!folderPath.trim() || isProcessingFolder}
-                      className="btn-primary w-full"
-                    >
-                      {isProcessingFolder ? (
-                        <>
-                          <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                          Processing folder...
-                        </>
-                      ) : (
-                        <>
-                          <FolderOpen className="h-5 w-5 mr-2" />
-                          Process Year Folder
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
+                    {mapDataError && (
+                      <div className="alert-error flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /><span className="text-sm">{mapDataError}</span>
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <button onClick={handleMapDataFetch} disabled={isFetchingData} className="btn-primary flex-1">
+                        {isFetchingData ? <><Loader2 className="animate-spin h-4 w-4 mr-2" />Fetching...</> : <><RefreshCw className="h-4 w-4 mr-2" />Fetch Data</>}
+                      </button>
+                      <button onClick={handleGeocode} disabled={isGeocoding} className="btn-secondary flex-1">
+                        {isGeocoding ? <><Loader2 className="animate-spin h-4 w-4 mr-2" />Starting...</> : <><LocateFixed className="h-4 w-4 mr-2" />Locate Tenders</>}
+                      </button>
+                    </div>
+                  </div>
+                  <ul className="text-xs text-gray-500 space-y-2 self-center">
+                    <li>• <strong>Fetch Data</strong> — pulls new tenders from EOP and POIs from OSM</li>
+                    <li>• <strong>Locate Tenders</strong> — adds coordinates to tenders missing location</li>
+                    <li>• Geocoding runs in background — check map after a few minutes</li>
+                  </ul>
+                </div>
               </div>
             </div>
 
             {/* Upload History */}
             <div className="card">
-              <div 
-                className="card-header flex items-center justify-between cursor-pointer"
-                onClick={toggleHistory}
-              >
-                <div className="flex items-center">
-                  <History className="h-5 w-5 text-primary-600 mr-2" />
-                  <h2 className="text-lg font-semibold text-gray-900">Upload History</h2>
+              <div className="card-header flex items-center justify-between cursor-pointer" onClick={toggleHistory}>
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary-600" />
+                  <h2 className="font-semibold text-gray-900">Upload History</h2>
                 </div>
-                {showHistory ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
+                {showHistory ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
               </div>
-              
               {showHistory && (
                 <div className="card-body">
                   {isLoadingHistory ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="animate-spin h-6 w-6 text-primary-600" />
-                    </div>
+                    <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6 text-primary-600" /></div>
                   ) : uploadHistory.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">
-                      No upload history found
-                    </p>
+                    <p className="text-gray-500 text-center py-8 text-sm">No upload history found</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="admin-table">
-                        <thead>
-                          <tr>
-                            <th>Date</th>
-                            <th>Action</th>
-                            <th>Document</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
+                        <thead><tr><th>Date</th><th>File</th><th>Type</th><th>Status</th></tr></thead>
                         <tbody className="divide-y divide-gray-200">
-                          {uploadHistory.map((upload) => (
-                            <tr key={upload.id}>
-                              <td className="text-gray-500">
-                                {formatDate(upload.created_at)}
-                              </td>
+                          {uploadHistory.map(u => (
+                            <tr key={u.id}>
+                              <td className="text-gray-500 text-xs">{formatDate(u.created_at)}</td>
+                              <td className="text-sm">{u.details?.originalName || '—'}</td>
+                              <td className="text-xs text-gray-500">{u.details?.documentType || '—'}</td>
                               <td>
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  upload.action === 'upload_success' 
-                                    ? 'bg-success-100 text-success-800' 
-                                    : 'bg-danger-100 text-danger-800'
-                                }`}>
-                                  {upload.action === 'upload_success' ? 'Success' : 'Failed'}
-                                </span>
-                              </td>
-                              <td>
-                                {upload.details?.originalName || 'Unknown'}
-                                <br />
-                                <span className="text-xs text-gray-500">
-                                  {getDocumentTypeLabel(upload.details?.documentType)}
-                                </span>
-                              </td>
-                              <td>
-                                {upload.success ? (
-                                  <CheckCircle className="h-5 w-5 text-success-600" />
-                                ) : (
-                                  <AlertCircle className="h-5 w-5 text-danger-600" />
-                                )}
+                                {u.success
+                                  ? <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-success-100 text-success-800">Success</span>
+                                  : <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-danger-100 text-danger-800">Failed</span>}
                               </td>
                             </tr>
                           ))}
@@ -797,249 +487,10 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
+
           </div>
-
-          {/* Right Column - Info & Stats */}
-          <div className="space-y-6">
-            {/* User Info Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <User className="h-5 w-5 text-primary-600 mr-2" />
-                  Administrator Info
-                </h2>
-              </div>
-              <div className="card-body space-y-4">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Username</label>
-                  <p className="text-sm font-medium text-gray-900">{user?.username}</p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Email</label>
-                  <p className="text-sm text-gray-900">{user?.email}</p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Role</label>
-                  <p className="text-sm">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user?.role === 'super_admin' 
-                        ? 'bg-primary-100 text-primary-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {user?.role}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Security Info Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Lock className="h-5 w-5 text-primary-600 mr-2" />
-                  Security Status
-                </h2>
-              </div>
-              <div className="card-body space-y-4">
-                <div className="flex items-center text-sm text-success-700 bg-success-50 p-3 rounded-md">
-                  <Shield className="h-5 w-5 mr-2 flex-shrink-0" />
-                  <span>Authenticated and secure</span>
-                </div>
-                
-                <div className="text-xs text-gray-600 space-y-2">
-                  <p>• All actions are logged and audited</p>
-                  <p>• Session expires after 24 hours</p>
-                  <p>• Uploads are scanned and validated</p>
-                  <p>• Database connections are encrypted</p>
-                </div>
-              </div>
-            </div>
-
-{/* Database Management Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Table className="h-5 w-5 text-primary-600 mr-2" />
-                  Database Management
-                </h2>
-              </div>
-              <div className="card-body space-y-4">
-                <p className="text-sm text-gray-600">
-                  View, edit, and manage all database records directly from the admin interface.
-                </p>
-                <button
-                  onClick={() => navigate('/database')}
-                  className="btn-primary w-full"
-                >
-                  <Database className="h-4 w-4 mr-2" />
-                  Open Database Manager
-</button>
-              </div>
-            </div>
-
-            {/* Project Map Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <MapPin className="h-5 w-5 text-primary-600 mr-2" />
-                  Project Map
-                </h2>
-              </div>
-              <div className="card-body space-y-4">
-                <p className="text-sm text-gray-600">
-                  Manage municipal projects on the interactive map. Create, edit, and track project status with coordinates.
-                </p>
-                <button
-                  onClick={() => navigate('/projects')}
-                  className="btn-primary w-full"
-                >
-                  <MapPin className="h-4 w-4 mr-2" />
-                  Open Project Manager
-                </button>
-              </div>
-            </div>
-
-            {/* Council Votes Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Vote className="h-5 w-5 text-primary-600 mr-2" />
-                  Council Votes
-                </h2>
-              </div>
-              <div className="card-body space-y-4">
-                <p className="text-sm text-gray-600">
-                  Manage municipal council voting records. Create, edit, and track voting sessions, proposals, and results.
-                </p>
-                <button
-                  onClick={() => navigate('/council-votes')}
-                  className="btn-primary w-full"
-                >
-                  <Vote className="h-4 w-4 mr-2" />
-                  Open Council Votes Manager
-                </button>
-              </div>
-            </div>
-
-            {/* Map Data Management Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Map className="h-5 w-5 text-primary-600 mr-2" />
-                  Map Data Management
-                </h2>
-              </div>
-              <div className="card-body space-y-4">
-                <p className="text-sm text-gray-600">
-                  Fetch fresh data from external sources and update map coordinates.
-                </p>
-                
-                {/* Map Data Results */}
-                {mapDataResult && (
-                  <div className="alert-success">
-                    <div className="flex items-start">
-                      <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium">Operation completed!</p>
-                        <p className="text-sm mt-1">{mapDataResult.summary}</p>
-                        {mapDataResult.eop && (
-                          <p className="text-xs mt-1">
-                            EOP: {mapDataResult.eop.import.imported} imported, {mapDataResult.eop.import.updated} updated
-                          </p>
-                        )}
-                        {mapDataResult.osm && (
-                          <p className="text-xs mt-1">
-                            OSM: {mapDataResult.osm.totalSaved} objects saved
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Map Data Error */}
-                {mapDataError && (
-                  <div className="alert-error flex items-start">
-                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>{mapDataError}</span>
-                  </div>
-                )}
-                
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={handleMapDataFetch}
-                    disabled={isFetchingData}
-                    className="btn-primary w-full"
-                  >
-                    {isFetchingData ? (
-                      <>
-                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                        Fetching Data...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Fetch Fresh Data
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={handleGeocode}
-                    disabled={isGeocoding}
-                    className="btn-secondary w-full"
-                  >
-                    {isGeocoding ? (
-                      <>
-                        <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                        Starting Geocoding...
-                      </>
-                    ) : (
-                      <>
-                        <LocateFixed className="h-4 w-4 mr-2" />
-                        Locate Tenders
-                      </>
-                    )}
-                  </button>
-                </div>
-                
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p>• Fetch Data: Gets new tenders from EOP and POIs from OSM</p>
-                  <p>• Locate Tenders: Adds coordinates to tenders without location</p>
-                  <p>• Geocoding runs in background - check map after a few minutes</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Help Card */}
-            <div className="card">
-              <div className="card-header">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Settings className="h-5 w-5 text-primary-600 mr-2" />
-                  Document Types
-                </h2>
-              </div>
-              <div className="card-body">
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <p className="font-medium text-gray-900">Municipal Project</p>
-                    <p className="text-gray-600 text-xs">Construction, renovation, and infrastructure projects</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Budget Document</p>
-                    <p className="text-gray-600 text-xs">Annual budgets, allocations, and financial reports</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Council Vote</p>
-                    <p className="text-gray-600 text-xs">Meeting minutes and voting records</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };

@@ -4,7 +4,7 @@ import { translations } from '../i18n/translations.js'
 const LanguageContext = createContext()
 
 export function LanguageProvider({ children }) {
-  const [language, setLanguage] = useState('en') // default English
+  const [language, setLanguage] = useState('bg')
 
   const t = (key, params = {}) => {
     let text = translations[language][key] || translations.en[key] || key

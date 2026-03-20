@@ -323,9 +323,10 @@ function Home() {
           ) : (
             <div className="space-y-4">
               {recentTenders.slice(0, 3).map((tender) => (
-                <div 
-                  key={tender.id} 
-                  className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                <Link
+                  key={tender.id}
+                  to={`/tender/${tender.id}`}
+                  className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -359,7 +360,7 @@ function Home() {
                        tender.status === 'completed' ? t('status.completed') : tender.status}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -382,7 +383,7 @@ function Home() {
           ) : (
             <div className="space-y-4">
               {recentVotes.map((vote) => (
-                <div key={vote.id} className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <Link key={vote.id} to="/council" className="block p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
@@ -405,7 +406,7 @@ function Home() {
                        vote.result === 'rejected' ? t('home.voteRejected') : t('home.votePostponed')}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

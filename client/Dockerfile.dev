@@ -14,6 +14,8 @@ RUN npm install
 
 COPY --chown=node:node . .
 
+RUN mkdir -p public && cp src/assets/logo.png public/logo.png
+
 EXPOSE 5173
 
 CMD ["npm", "run", "dev", "--", "--host"]

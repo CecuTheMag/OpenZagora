@@ -1,42 +1,24 @@
 /**
  * Council Page
- * 
- * Displays municipal council voting records and statistics.
- * Shows voting history, results, and participation analytics.
+ * Municipal council voting records and participation analytics.
  */
 
 import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, LineChart, Line
 } from 'recharts'
 import {
-  Users,
-  CheckCircle,
-  XCircle,
-  MinusCircle,
-  Calendar,
-  Search,
-  Filter,
-  TrendingUp,
-  Gavel,
-  FileText
+  Users, CheckCircle, XCircle, MinusCircle,
+  Calendar, Search, Filter, Gavel, FileText
 } from 'lucide-react'
 
-// API base URL - use relative path to work with Vite proxy in both localhost and network access
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function CouncilPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [votes, setVotes] = useState([])
   const [statistics, setStatistics] = useState(null)
   const [years, setYears] = useState([])
@@ -46,7 +28,6 @@ function CouncilPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [resultFilter, setResultFilter] = useState('all')
 
-  // Fetch votes data
   useEffect(() => {
     fetchVotes()
     fetchStatistics()
@@ -56,8 +37,7 @@ function CouncilPage() {
   const fetchVotes = async () => {
     try {
       setLoading(true)
-      // If 'all' is selected, fetch without year filter to get all votes
-      const url = selectedYear === 'all' 
+      const url = selectedYear === 'all'
         ? `${API_URL}/votes?limit=100`
         : `${API_URL}/votes?year=${selectedYear}&limit=100`
       const response = await axios.get(url)
@@ -65,7 +45,7 @@ function CouncilPage() {
       setError(null)
     } catch (err) {
       console.error('Error fetching votes:', err)
-      setError('Failed to load voting records. Please try again later.')
+      setError(t('council.loadError'))
     } finally {
       setLoading(false)
     }
@@ -73,129 +53,99 @@ function CouncilPage() {
 
   const fetchStatistics = async () => {
     try {
-      // Get statistics - if 'all' is selected, get all-time statistics
-      let url = `${API_URL}/votes/statistics`
-      if (selectedYear !== 'all' && selectedYear) {
-        url = `${API_URL}/votes/statistics?year=${selectedYear}`
-      }
-      
+      const url = selectedYear !== 'all'
+        ? `${API_URL}/votes/statistics?year=${selectedYear}`
+        : `${API_URL}/votes/statistics`
       const response = await axios.get(url)
       setStatistics(response.data)
     } catch (err) {
-      console.error('Error fetching statistics:', err)
-      // Try fetching without year filter as fallback
       try {
-        const fallbackResponse = await axios.get(`${API_URL}/votes/statistics`)
-        setStatistics(fallbackResponse.data)
-      } catch (fallbackErr) {
-        console.error('Fallback statistics fetch also failed:', fallbackErr)
-      }
+        const r = await axios.get(`${API_URL}/votes/statistics`)
+        setStatistics(r.data)
+      } catch {}
     }
   }
 
   const fetchYears = async () => {
     try {
       const response = await axios.get(`${API_URL}/votes/years`)
-      const yearsList = response.data.years || []
-      setYears(yearsList)
-    } catch (err) {
-      console.error('Error fetching years:', err)
-    }
+      setYears(response.data.years || [])
+    } catch {}
   }
 
-  // Filter votes based on search and result filter
   const filteredVotes = votes.filter((vote) => {
-    const matchesSearch = searchQuery === '' || 
+    const matchesSearch = searchQuery === '' ||
       vote.proposal_title?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesResult = resultFilter === 'all' || vote.result === resultFilter
     return matchesSearch && matchesResult
   })
 
-  // Format date
+  const locale = language === 'bg' ? 'bg-BG' : 'en-GB'
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('bg-BG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    return new Date(dateString).toLocaleDateString(locale, {
+      year: 'numeric', month: 'long', day: 'numeric'
     })
   }
 
-  // Get result badge style
-  const getResultBadge = (result) => {
-    const classes = {
-      passed: 'bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center',
-      rejected: 'bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium flex items-center',
-      postponed: 'bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium flex items-center',
-      unknown: 'bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium flex items-center'
-    }
-    return classes[result] || classes.unknown
+  const formatDateShort = (dateString) => {
+    if (!dateString) return ''
+    return new Date(dateString).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
   }
 
-  // Get result icon
-  const getResultIcon = (result) => {
-    switch (result) {
-      case 'passed':
-        return <CheckCircle className="h-4 w-4 mr-1" />
-      case 'rejected':
-        return <XCircle className="h-4 w-4 mr-1" />
-      case 'postponed':
-        return <MinusCircle className="h-4 w-4 mr-1" />
-      default:
-        return <MinusCircle className="h-4 w-4 mr-1" />
-    }
-  }
-
-  // Calculate participation percentage
   const getParticipationPercentage = (vote) => {
-    const total = vote.vote_yes + vote.vote_no + vote.vote_abstain
-    // Assuming 41 council members (typical for Bulgarian municipalities)
-    const councilSize = 41
-    return Math.round((total / councilSize) * 100)
+    const total = (vote.vote_yes || 0) + (vote.vote_no || 0) + (vote.vote_abstain || 0)
+    return Math.round((total / 41) * 100)
+  }
+
+  const resultConfig = {
+    passed:    { badge: 'bg-green-100 text-green-800 border border-green-200',  icon: <CheckCircle  className="h-3.5 w-3.5 mr-1" /> },
+    rejected:  { badge: 'bg-red-100 text-red-800 border border-red-200',        icon: <XCircle      className="h-3.5 w-3.5 mr-1" /> },
+    postponed: { badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200', icon: <MinusCircle className="h-3.5 w-3.5 mr-1" /> },
+  }
+
+  const resultLabel = {
+    passed:    t('council.passed'),
+    rejected:  t('council.rejected'),
+    postponed: t('council.postponed'),
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600" />
+        <p className="text-gray-500">{t('common.loading')}</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-        <p className="text-red-700">{error}</p>
-        <button 
-          onClick={fetchVotes}
-          className="mt-4 btn-primary"
-        >
-          {t('common.retry')}
-        </button>
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center mx-4">
+        <p className="text-red-700 mb-4">{error}</p>
+        <button onClick={fetchVotes} className="btn-primary">{t('common.retry')}</button>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('home.councilVotes')}</h1>
-          <p className="text-gray-600 mt-1">
-            {t('home.votesDesc')}
-          </p>
-        </div>
+    <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
 
-        {/* Year Selector */}
-        <div className="flex items-center space-x-2">
-          <Calendar className="h-5 w-5 text-gray-500" />
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{t('council.title')}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('council.description')}</p>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <Calendar className="h-4 w-4 text-gray-500 shrink-0" />
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
-            className="input-field w-40"
+            className="input-field text-sm py-1.5"
           >
-            <option value="all">All Years</option>
+            <option value="all">{t('council.allYears')}</option>
             {years.map((year) => (
               <option key={year} value={year}>{year}</option>
             ))}
@@ -203,140 +153,109 @@ function CouncilPage() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
+      {/* KPI Cards */}
       {statistics?.overall && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Votes</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {statistics.overall.total_votes}
-                </p>
-              </div>
-              <div className="p-3 bg-primary-100 rounded-lg">
-                <Gavel className="h-8 w-8 text-primary-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Passed</p>
-                <p className="text-3xl font-bold text-green-600 mt-2">
-                  {statistics.overall.passed_count}
-                </p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Rejected</p>
-                <p className="text-3xl font-bold text-red-600 mt-2">
-                  {statistics.overall.rejected_count}
-                </p>
-              </div>
-              <div className="p-3 bg-red-100 rounded-lg">
-                <XCircle className="h-8 w-8 text-red-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg Participation</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {Math.round(statistics.overall.avg_participation || 0)}
-                </p>
-                <p className="text-sm text-gray-500">council members</p>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Users className="h-8 w-8 text-purple-600" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {[
+            {
+              label: t('council.totalVotes'),
+              value: statistics.overall.total_votes,
+              sub: null,
+              icon: <Gavel className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600" />,
+              bg: 'bg-primary-100',
+              color: 'text-gray-900'
+            },
+            {
+              label: t('council.passed'),
+              value: statistics.overall.passed_count,
+              sub: null,
+              icon: <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />,
+              bg: 'bg-green-100',
+              color: 'text-green-600'
+            },
+            {
+              label: t('council.rejected'),
+              value: statistics.overall.rejected_count,
+              sub: null,
+              icon: <XCircle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />,
+              bg: 'bg-red-100',
+              color: 'text-red-600'
+            },
+            {
+              label: t('council.avgParticipation'),
+              value: Math.round(statistics.overall.avg_participation || 0),
+              sub: t('council.councilMembers'),
+              icon: <Users className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />,
+              bg: 'bg-purple-100',
+              color: 'text-gray-900'
+            },
+          ].map(({ label, value, sub, icon, bg, color }) => (
+            <div key={label} className="card p-3 sm:p-5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{label}</p>
+                  <p className={`text-xl sm:text-3xl font-bold mt-1 ${color}`}>{value}</p>
+                  {sub && <p className="text-xs text-gray-500 mt-0.5 truncate">{sub}</p>}
+                </div>
+                <div className={`p-2 sm:p-3 rounded-lg shrink-0 ${bg}`}>{icon}</div>
               </div>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
-      {/* Charts Section */}
+      {/* Charts */}
       {statistics && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Monthly Breakdown */}
-          <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Monthly Voting Activity
-            </h2>
-            <div className="h-[300px]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="card p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-4">{t('council.monthlyActivity')}</h2>
+            <div className="h-56 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={statistics.monthlyBreakdown}>
+                <BarChart data={statistics.monthlyBreakdown} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="month" 
-                    tickFormatter={(value) => {
-                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                      return months[value - 1] || value
-                    }}
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => t(`council.months.${v}`)}
                   />
-                  <YAxis />
-                  <Tooltip 
-                    labelFormatter={(value) => {
-                      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                                    'July', 'August', 'September', 'October', 'November', 'December']
-                      return months[value - 1] || value
-                    }}
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    labelFormatter={(v) => t(`council.monthsFull.${v}`)}
+                    formatter={(value, name) => [value, name === 'passed' ? t('council.chartPassed') : t('council.chartRejected')]}
                   />
-                  <Bar dataKey="passed" fill="#22c55e" name="Passed" />
-                  <Bar dataKey="rejected" fill="#ef4444" name="Rejected" />
+                  <Bar dataKey="passed" fill="#22c55e" name="passed" radius={[3,3,0,0]} />
+                  <Bar dataKey="rejected" fill="#ef4444" name="rejected" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Participation Trends */}
-          <div className="card">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Participation Trends
-            </h2>
-            <div className="h-[300px]">
+          <div className="card p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-4">{t('council.participationTrends')}</h2>
+            <div className="h-56 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={statistics.participationTrends}>
+                <LineChart data={statistics.participationTrends} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
+                  <XAxis
                     dataKey="session_date"
-                    tickFormatter={(value) => new Date(value).toLocaleDateString('bg-BG', { month: 'short', day: 'numeric' })}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={formatDateShort}
                   />
-                  <YAxis domain={[0, 41]} />
-                  <Tooltip 
-                    labelFormatter={(value) => formatDate(value)}
+                  <YAxis domain={[0, 41]} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    labelFormatter={formatDate}
+                    formatter={(value, name) => {
+                      const labels = {
+                        total_participation: t('council.chartTotal'),
+                        vote_yes: t('council.chartYes'),
+                        vote_no: t('council.chartNo'),
+                      }
+                      return [value, labels[name] || name]
+                    }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="total_participation" 
-                    stroke="#3b82f6" 
-                    strokeWidth={2}
-                    name="Total Participation"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="vote_yes" 
-                    stroke="#22c55e" 
-                    strokeWidth={2}
-                    name="Yes Votes"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="vote_no" 
-                    stroke="#ef4444" 
-                    strokeWidth={2}
-                    name="No Votes"
-                  />
+                  <Line type="monotone" dataKey="total_participation" stroke="#3b82f6" strokeWidth={2} dot={false} name="total_participation" />
+                  <Line type="monotone" dataKey="vote_yes" stroke="#22c55e" strokeWidth={2} dot={false} name="vote_yes" />
+                  <Line type="monotone" dataKey="vote_no" stroke="#ef4444" strokeWidth={2} dot={false} name="vote_no" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -345,141 +264,122 @@ function CouncilPage() {
       )}
 
       {/* Filters */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
+      <div className="card p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search proposals..."
+              placeholder={t('council.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="input-field pl-10"
+              className="input-field pl-9 text-sm"
             />
           </div>
-
-          {/* Result Filter */}
-          <div className="flex items-center space-x-2">
-            <Filter className="h-5 w-5 text-gray-500" />
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-500 shrink-0" />
             <select
               value={resultFilter}
               onChange={(e) => setResultFilter(e.target.value)}
-              className="input-field w-40"
+              className="input-field text-sm py-1.5 flex-1 sm:w-40"
             >
-              <option value="all">All Results</option>
-              <option value="passed">Passed</option>
-              <option value="rejected">Rejected</option>
-              <option value="postponed">Postponed</option>
+              <option value="all">{t('council.allResults')}</option>
+              <option value="passed">{t('council.passed')}</option>
+              <option value="rejected">{t('council.rejected')}</option>
+              <option value="postponed">{t('council.postponed')}</option>
             </select>
           </div>
         </div>
       </div>
 
       {/* Votes List */}
-      <div className="card">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
-          Voting Records
-          <span className="text-sm font-normal text-gray-500 ml-2">
-            ({filteredVotes.length} of {votes.length})
+      <div className="card p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-4">
+          {t('council.votingRecords')}
+          <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
+            ({t('council.of', { count: filteredVotes.length, total: votes.length })})
           </span>
         </h2>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {filteredVotes.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No voting records found matching your criteria
-            </p>
+            <p className="text-gray-500 text-center py-8 text-sm">{t('council.noRecords')}</p>
           ) : (
-            filteredVotes.map((vote) => (
-              <div 
-                key={vote.id}
-                className="p-6 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  {/* Proposal Info */}
-                  <div className="flex-1">
-                    <div className="flex items-start space-x-3">
-                      <div className="p-2 bg-primary-100 rounded-lg">
-                        <FileText className="h-5 w-5 text-primary-600" />
+            filteredVotes.map((vote) => {
+              const cfg = resultConfig[vote.result] || resultConfig.postponed
+              const pct = getParticipationPercentage(vote)
+              return (
+                <div
+                  key={vote.id}
+                  className="p-3 sm:p-5 bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow"
+                >
+                  {/* Top row: icon + title + badge */}
+                  <div className="flex items-start gap-3">
+                    <div className="p-1.5 sm:p-2 bg-primary-100 rounded-lg shrink-0 mt-0.5">
+                      <FileText className="h-4 w-4 text-primary-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base leading-snug">
+                        {vote.proposal_title}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <span className="flex items-center text-xs text-gray-500">
+                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          {formatDate(vote.session_date)}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.badge}`}>
+                          {cfg.icon}
+                          {resultLabel[vote.result] || vote.result}
+                        </span>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 text-lg">
-                          {vote.proposal_title}
-                        </h3>
-                        <div className="flex items-center mt-2 space-x-4 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            {formatDate(vote.session_date)}
-                          </span>
-                          <span className={getResultBadge(vote.result)}>
-                            {getResultIcon(vote.result)}
-                            {vote.result?.charAt(0).toUpperCase() + vote.result?.slice(1)}
-                          </span>
-                        </div>
+                    </div>
+                  </div>
+
+                  {/* Vote counts */}
+                  <div className="flex items-center gap-4 sm:gap-8 mt-3 pl-0 sm:pl-11">
+                    {[
+                      { label: t('council.yes'),     value: vote.vote_yes,     color: 'text-green-600' },
+                      { label: t('council.no'),      value: vote.vote_no,      color: 'text-red-600'   },
+                      { label: t('council.abstain'), value: vote.vote_abstain, color: 'text-gray-500'  },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="text-center">
+                        <p className={`text-lg sm:text-2xl font-bold ${color}`}>{value}</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
                       </div>
+                    ))}
+                  </div>
+
+                  {/* Participation bar */}
+                  <div className="mt-3 sm:pl-11">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>{t('council.participation')}</span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="h-1.5 rounded-full bg-primary-500 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
 
-                  {/* Vote Counts */}
-                  <div className="flex items-center space-x-6">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">
-                        {vote.vote_yes}
-                      </p>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">
-                        Yes
-                      </p>
+                  {/* Raw text */}
+                  {vote.raw_text && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 sm:pl-11">
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-primary-600 hover:text-primary-700 font-medium text-xs sm:text-sm">
+                          {t('council.viewOriginal')}
+                        </summary>
+                        <p className="mt-2 text-gray-600 whitespace-pre-wrap font-mono text-xs bg-gray-100 p-3 rounded-lg">
+                          {vote.raw_text.substring(0, 500)}
+                          {vote.raw_text.length > 500 && '...'}
+                        </p>
+                      </details>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-red-600">
-                        {vote.vote_no}
-                      </p>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">
-                        No
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-gray-600">
-                        {vote.vote_abstain}
-                      </p>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">
-                        Abstain
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                {/* Participation Bar */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                    <span>Council Participation</span>
-                    <span>{getParticipationPercentage(vote)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full bg-primary-500"
-                      style={{ width: `${getParticipationPercentage(vote)}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Raw Text Preview (if available) */}
-                {vote.raw_text && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-primary-600 hover:text-primary-700 font-medium">
-                        View original document text
-                      </summary>
-                      <p className="mt-2 text-gray-600 whitespace-pre-wrap font-mono text-xs bg-gray-100 p-3 rounded">
-                        {vote.raw_text.substring(0, 500)}
-                        {vote.raw_text.length > 500 && '...'}
-                      </p>
-                    </details>
-                  </div>
-                )}
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
@@ -488,5 +388,3 @@ function CouncilPage() {
 }
 
 export default CouncilPage
-
-
