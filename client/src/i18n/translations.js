@@ -9,7 +9,7 @@ export const translations = {
     'nav.transparencyDashboard': 'Transparency Dashboard',
 
     // Footer
-    'footer.copyright': '© 2024 Open Zagora. Municipal Transparency Dashboard.',
+    'footer.copyright': '© 2026 Open Zagora. Municipal Transparency Dashboard.',
     'footer.about': 'About',
     'footer.apiDocs': 'API Documentation',
     'footer.contact': 'Contact',
@@ -301,7 +301,7 @@ export const translations = {
     'home.officialSite': 'Official Website',
     'home.dataSources': 'Data Sources',
     'home.dataAutoUpdate': 'Data is automatically updated every hour',
-    'home.copyright': '© 2024 Municipality of Stara Zagora. All rights reserved.',
+    'home.copyright': '© 2026 Municipality of Stara Zagora. All rights reserved.',
     'home.platformDesc': 'Open governance and transparency platform',
 
     // Tender Details
@@ -369,7 +369,7 @@ export const translations = {
     'nav.transparencyDashboard': 'Прозрачност на общината',
 
     // Footer
-    'footer.copyright': '© 2024 Open Загора. Прозрачен общински табло.',
+    'footer.copyright': '© 2026 Open Загора. Прозрачно общинско табло.',
     'footer.about': 'Относно',
     'footer.apiDocs': 'API документация',
     'footer.contact': 'Контакти',
@@ -661,7 +661,7 @@ export const translations = {
     'home.officialSite': 'Официален сайт',
     'home.dataSources': 'Източници на данни',
     'home.dataAutoUpdate': 'Данните се обновяват автоматично всеки час',
-    'home.copyright': '© 2024 Община Стара Загора. Всички права запазени.',
+    'home.copyright': '© 2026 Община Стара Загора. Всички права запазени.',
     'home.platformDesc': 'Платформа за открито управление и прозрачност',
 
     // Tender Details
